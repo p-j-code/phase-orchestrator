@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Orchestrator: status",
+      "program": "${workspaceFolder}/src/orchestrator.js",
+      "args": ["status"],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Orchestrator: config self-test",
+      "program": "${workspaceFolder}/src/config-resolver.js",
+      "args": ["--selftest"],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Orchestrator: new test project",
+      "program": "${workspaceFolder}/src/orchestrator.js",
+      "args": ["new", "testproject", "--profile", "react-vite", "--tech", "React 18 + TS + Vite"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

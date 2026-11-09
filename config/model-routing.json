@@ -1,0 +1,143 @@
+{
+  "$schema_version": 3,
+  "_notes": "v0.4 retune: split broad regulatory/security keywords into 'core' (force opus, narrow) and 'domain' (min sonnet, broad). Prevents every TDS/GST/auth phase from auto-escalating to critical+opus. v0.14.35: haiku tier removed (configured but unreachable in practice); tier_caps deleted with it. v0.14.36: prefer_top_for_critical set false — complexity scoring was a weak escalation proxy; failure-driven escalation (phase fails → re-run on opus) replaces it. Flip back to true to restore, then check /spend. v0.15: haiku tier reinstated for mechanical overhead tasks now that config/defaults.json's model_routing.tier_models carries a haiku entry, making it reachable end-to-end. Keyword-rule matches now resolve by explicit precedence instead of array order: force_tier always wins outright; else the most restrictive matched max_tier cap wins over the highest matched min_tier floor (floor applies first, then the cap is re-applied over it); complexity escalation (prefer_top_for_critical) remains the lowest-priority step, unchanged. v0.17 (schema 3): 4th tier 'fable' (claude-fable-5) — regulatory-core/security-core force_tier retuned opus → fable (wrong = legal/silent-expensive consequences; one top-tier sample earns its cost there). Fable can return a refusal stop_reason on security-adjacent content; the escalation ladder treats that like any other is_error (opus marker re-run), so a refused fable call degrades, not deadlocks. hard_floors entries may now be conditional {tier, when:{min_*}} objects (size-gated opus floors): the floor applies when ANY listed size signal meets its threshold, applies unconditionally when the caller supplied no signals (fail-safe), and is skipped otherwise — small briefs plan on the sonnet baseline and rely on the plan-validate + coverage-BLOCKER regen backstop; a 0-2-candidate audit scan needs no opus adjudicator.",
+  "complexity_thresholds": {
+    "max_turns_high": 999,
+    "max_turns_critical": 999,
+    "acceptance_criteria_high": 7,
+    "acceptance_criteria_critical": 12,
+    "files_expected_high": 8,
+    "files_expected_critical": 15
+  },
+  "keyword_rules": [
+    {
+      "label": "regulatory-core",
+      "match": [
+        "NSDL FVU",
+        "GSTR JSON export",
+        "FVU file",
+        "FVU generator",
+        "26Q file format",
+        "24Q file format",
+        "compliance validator",
+        "regulatory file format",
+        "tax filing utility"
+      ],
+      "force_tier": "fable",
+      "reason": "regulatory file format generation — wrong = legal consequences. Match phrases, not single tokens. v0.17: top tier (fable) — one strong sample beats an opus bug cycle here."
+    },
+    {
+      "label": "regulatory-domain",
+      "match": [
+        "TDS",
+        "GST",
+        "26Q",
+        "24Q",
+        "27EQ",
+        "GDPR",
+        "HIPAA",
+        "audit trail",
+        "compliance",
+        "tax filing"
+      ],
+      "min_tier": "sonnet",
+      "reason": "regulatory domain — solid implementation expected but not necessarily opus-tier"
+    },
+    {
+      "label": "security-core",
+      "match": [
+        "crypto",
+        "encryption key",
+        "key derivation",
+        "JWT signing",
+        "OAuth flow",
+        "password hashing",
+        "secret rotation",
+        "PCI compliance",
+        "PII encryption"
+      ],
+      "force_tier": "fable",
+      "reason": "security-critical crypto/auth core — mistakes are silent and expensive. v0.17: top tier (fable); a refusal stop_reason falls back through the normal escalation/failure routing"
+    },
+    {
+      "label": "security-domain",
+      "match": [
+        "auth",
+        "authorization",
+        "RBAC",
+        "session",
+        "permission check",
+        "rate limit",
+        "CSRF",
+        "XSS"
+      ],
+      "min_tier": "sonnet",
+      "reason": "security-adjacent — solid implementation expected"
+    },
+    {
+      "label": "data-correctness",
+      "match": [
+        "migration",
+        "schema change",
+        "data integrity",
+        "transaction",
+        "atomic",
+        "race condition",
+        "deadlock",
+        "money",
+        "currency",
+        "balance",
+        "reconciliation"
+      ],
+      "min_tier": "sonnet",
+      "reason": "data correctness — wrong implementation corrupts state"
+    },
+    {
+      "label": "performance-critical",
+      "match": [
+        "worker queue",
+        "concurrency",
+        "batch processing",
+        "performance optimization",
+        "memory leak"
+      ],
+      "min_tier": "sonnet",
+      "reason": "concurrency bugs are hard to reproduce"
+    },
+    {
+      "label": "low-stakes-ui",
+      "match": [
+        "styling",
+        "tooltip wording",
+        "icon swap",
+        "spacing tweak",
+        "color tweak",
+        "label copy",
+        "placeholder text"
+      ],
+      "max_tier": "sonnet",
+      "reason": "cosmetic; opus is wasteful here"
+    }
+  ],
+  "escalation_tasks": ["dev-execution", "fix-execution"],
+  "hard_floors": {
+    "plan-creation": {
+      "tier": "opus",
+      "when": { "min_brief_chars": 12000, "min_brief_frs": 8 }
+    },
+    "3-phase-review": "sonnet",
+    "bug-plan": "sonnet",
+    "audit": { "tier": "opus", "when": { "min_candidates": 3 } },
+    "roadmap": {
+      "tier": "opus",
+      "when": { "min_brief_chars": 12000, "min_brief_frs": 8 }
+    }
+  },
+  "_hard_floors_comment": "v0.17 size-gated opus floors. plan-creation/roadmap: opus only for large briefs (≥12k chars OR ≥8 numbered FRs — signals computed from the active brief in runGuide); small briefs draft on sonnet with the plan-validate coverage gate as backstop. audit: opus adjudication only when the two-stage scan produced ≥3 candidates (count re-routed after the scan stage in runTwoStageAudit); the single-call 'audit' path (audit.two_stage:false with no diff to scope to) passes no signals, so the floor still applies there (fail-safe). Plain string floors remain unconditional. phase-32 (MI-10): 'audit-incremental' (diff-scoped re-audits) deliberately has NO entry here — that absence IS the feature. Before phase-32, incremental re-audits routed under the SAME 'audit' key, so the fail-safe-when-no-signals rule above applied unconditionally to every incremental re-audit (they never supply candidate counts), paying opus over an already O(diff) input on every bug-round re-audit up to max_chain_rounds. Splitting incremental re-audits onto their own task id with no hard_floors entry lets them route on the sonnet baseline; the unchanged-HEAD forced-full, force_full_every_n periodic full, and the two-stage full audit's own opus floor (candidates>=3) remain the safety valves against sonnet under-judging a fix-verification. Do not add an 'audit-incremental' entry here without re-checking /spend first.",
+  "user_preferences": {
+    "prefer_top_for_critical": false,
+    "_escalation_scope_note": "v0.14.37: keyword + complexity escalation applies only to escalation_tasks (top-level key). Guide/overhead tasks route on baselines + floors.",
+    "show_routing_in_terminal": true,
+    "require_confirm_for_opus": false
+  }
+}

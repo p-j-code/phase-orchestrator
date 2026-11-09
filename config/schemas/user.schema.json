@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/user.json",
+  "title": "User Config",
+  "type": "object",
+  "required": ["$schema_version"],
+  "properties": {
+    "$schema_version": { "type": "integer", "minimum": 1 },
+    "claude_bin": { "type": "string" },
+    "claude_account": {
+      "type": "object",
+      "description": "Anthropic account this orchestrator authenticates as via Claude Code OAuth",
+      "properties": {
+        "email": { "type": "string" },
+        "plan": { "type": "string" }
+      }
+    },
+    "default_git_user": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": {
+          "oneOf": [
+            { "type": "string", "format": "email" },
+            { "type": "string", "maxLength": 0 }
+          ]
+        }
+      }
+    },
+    "telegram": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bot_token": { "type": ["string", "null"] },
+        "chat_id": { "type": ["string", "null"] }
+      }
+    },
+    "notification_channels": {
+      "type": "array",
+      "items": { "enum": ["terminal", "telegram", "macos-notification"] }
+    },
+    "overrides": {
+      "type": "object",
+      "description": "Machine-level overrides (rarely needed; project-level usually better)"
+    }
+  }
+}

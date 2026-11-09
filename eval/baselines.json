@@ -1,0 +1,5 @@
+{
+  "_comment": "Phase 84 (P6) prompt-eval baselines. One entry per '<fixture>/<task>' case: score (checklist fraction 0..1), artifact_hash (sha256 of the produced artifact), model (that produced the artifact), date (IST, YYYY-MM-DD). score:null means the baseline is NOT yet established — the harness reports the score but does NOT gate on it. Establish baselines by running `npm run eval:prompts -- --update-baseline` once on a trusted checkout; thereafter a run whose score drops more than eval.tolerance below the recorded score exits non-zero. Keys other than these case entries (like this _comment) are preserved across --update-baseline.",
+  "cli-tool/plan": { "score": null, "artifact_hash": null, "model": "claude-sonnet-5", "date": null },
+  "tiny-api/plan": { "score": null, "artifact_hash": null, "model": "claude-sonnet-5", "date": null }
+}

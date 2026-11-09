@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/verify-prescan.json",
+  "title": "Acceptance Checker Evidence Pre-scan",
+  "type": "object",
+  "required": ["pointers"],
+  "properties": {
+    "pointers": {
+      "type": "object",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file"],
+            "properties": {
+              "file": { "type": "string" },
+              "lines": { "type": "string" },
+              "why": { "type": "string" }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

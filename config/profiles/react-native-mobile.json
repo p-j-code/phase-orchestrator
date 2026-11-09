@@ -1,0 +1,15 @@
+{
+  "$schema_version": 1,
+  "name": "react-native-mobile",
+  "description": "React Native mobile apps (e.g. Ashmero Karigar, Customer apps)",
+  "tech_hints": "React Native, TypeScript, Redux Saga, React Navigation",
+  "overrides": {
+    "tools": {
+      "allowed_default": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+    },
+    "phases": {
+      "review_every_n_phases": 6,
+      "auto_commit": true
+    }
+  }
+}

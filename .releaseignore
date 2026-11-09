@@ -1,0 +1,30 @@
+# .releaseignore — patterns that must NEVER ship in a release zip.
+#
+# Consumed by scripts/build-release-zip.sh via `rsync --exclude-from`. The
+# builder ALSO hard-excludes the critical paths explicitly (belt-and-braces),
+# so a typo here can't leak the live DB or token — but keep this correct anyway.
+# This file is REQUIRED: the builder aborts if it's missing.
+
+# Live state / runtime data (the live SQLite DB lives in state/)
+/state/
+/logs/
+/outputs/
+
+# Secrets
+/config/telegram.json
+
+# Build output + dependencies + VCS metadata
+/dist/
+/node_modules/
+/.git/
+
+# Per-project trees — the builder re-seeds projects/.gitkeep so the dir exists
+/projects/*
+
+# Editor / OS cruft
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+*.log
+*.bak

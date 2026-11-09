@@ -1,0 +1,708 @@
+{
+  "$schema_version": 22,
+  "guide_layout_version": 2,
+  "bot": {
+    "provider": "telegram",
+    "_comment": "Which bot provider to use: 'telegram' (grammy) or 'discord' (discord.js). Switch by changing this value — no code changes needed."
+  },
+  "models": {
+    "plan-creation": "claude-sonnet-5",
+    "_plan_creation_comment": "v0.17 (size-gated opus floors): baseline dropped opus → sonnet. The conditional hard floor in config/model-routing.json raises plan-creation back to opus for large briefs (≥12k chars / ≥8 FRs) and for any caller that supplies no size signals (fail-safe) — small briefs draft on sonnet with the plan-validate coverage gate + BLOCKER auto-regen as the quality backstop. Same pattern for roadmap below.",
+    "phase-prompt-gen": "claude-sonnet-5",
+    "dev-execution": "claude-sonnet-5",
+    "3-phase-review": "claude-sonnet-5",
+    "review-slim": "claude-haiku-4-5",
+    "_review_slim_comment": "phase-35 (review-cadence-yield-gating / QL-6): the LIGHT review path for trivially-green batches (src/lib/review-weight.js) — a haiku one-shot, roleless/sessionless call, deliberately with NO hard_floors entry in config/model-routing.json so it stays on this baseline regardless of phase content.",
+    "review-lens": "claude-sonnet-5",
+    "_review_lens_comment": "phase-36 (QL-6 panel review): lenses 2/3 of a PANEL-classified review batch (src/lib/review-weight.js's computeReviewWeight -> 'panel') — fresh, roleless (role:null, sessionId:null) spawns scoped to security/failure-modes and brief/decisions consistency. Lens 1 stays the existing 3-phase-review call (resumed guide session). Deliberately no hard_floors/escalation_tasks entry in config/model-routing.json so this always stays on the sonnet baseline regardless of phase content — same no-floor pattern as review-slim/audit-incremental.",
+    "handoff-creation": "claude-sonnet-5",
+    "bug-plan": "claude-sonnet-5",
+    "fix-prompt-gen": "claude-sonnet-5",
+    "fix-execution": "claude-sonnet-5",
+    "workspace-claude-md": "claude-haiku-4-5",
+    "brief-author": "claude-sonnet-5",
+    "audit": "claude-sonnet-5",
+    "audit-incremental": "claude-sonnet-5",
+    "_audit_incremental_comment": "phase-32 (MI-10): incremental re-audits (diff-scoped, single-call) get their OWN task id so they never inherit 'audit's conditional opus hard_floor (config/model-routing.json) — that floor's fail-safe-when-no-signals behavior was charging opus for every diff-scoped re-audit regardless of size. Same baseline model as 'audit' (sonnet); no hard_floors entry exists for this task on purpose.",
+    "audit-scan": "claude-sonnet-5",
+    "plan-validate": "claude-sonnet-5",
+    "roadmap": "claude-sonnet-5",
+    "project-context-gen": "claude-haiku-4-5",
+    "requirement-refine": "claude-haiku-4-5",
+    "suggest-scan": "claude-haiku-4-5",
+    "triage": "claude-haiku-4-5",
+    "acceptance-check": "claude-sonnet-5",
+    "acceptance-test-author": "claude-sonnet-5",
+    "_acceptance_test_author_comment": "Phase 82 (test-first P4b): the acceptance-test author (src/lib/test-first.js) — a DEV-SIDE ROLELESS spawn (role:null, sessionId:null, cwd=workspaceDir), a clone of the acceptance checker's spawn EXCEPT its tools are ['Read','Glob','Grep','Write'] (Write, but NO Bash) so it can write exactly one failing test file and cannot run/commit it. Runs ONCE per opted-in phase BEFORE the dev spawn. Same session-safety class as acceptance-check — no hard_floors/escalation_tasks entry in config/model-routing.json on purpose (its manifest gets exactly one re-ask via the P1 reply contract, never a tier escalation).",
+    "brief-conformance": "claude-sonnet-5",
+    "_brief_conformance_comment": "phase-47 (P4): the back-of-pipeline FR->evidence checker (src/lib/brief-conformance.js) — one fresh, roleless (role:null, sessionId:null) read-only spawn per run, re-fired only when the active brief's content hash moves. No hard_floors/escalation_tasks entry in config/model-routing.json on purpose — it never escalates.",
+    "runtime-qa": "claude-sonnet-5",
+    "_runtime_qa_comment": "Phase 87 (brief 05 P5a): the runtime-QA agent (src/lib/runtime-qa.js runRuntimeQa) — a roleless (role:null, sessionId:null), cwd=workspaceDir spawn that actually LAUNCHES the built app in the background, probes it (curl for APIs, CLI invocation for CLIs — no browser automation, no new packages), walks the QA journeys, and replies with a schema-validated verdict (config/schemas/runtime-qa.schema.json) through the P1 llm-contract REPLY seam (exactly one re-ask, fail-open to an inconclusive verdict). ONE sonnet call per RUN (not per phase). Unlike the read-only acceptance checker its tool profile includes Bash, so its Bash is fenced by brief 04's landed deny-rule sandbox (security.deny_rules merged into the workspace's .claude/settings.json); if that mechanism is unresolvable it FAILS CLOSED (skips, makes NO Bash spawn — never falls back to unrestricted Bash). Same session-safety class as acceptance-check/brief-conformance — no hard_floors/escalation_tasks entry in config/model-routing.json on purpose (it never escalates). Wired into the ready-for-qa transition in phase 89 (auto-runner.js runReadyForQaRuntimeGate).",
+    "verify-prescan": "claude-haiku-4-5",
+    "verify-adjudicate": "claude-opus-4-8",
+    "lessons-distill": "claude-haiku-4-5",
+    "ledger-extract": "claude-haiku-4-5",
+    "_ledger_extract_comment": "Phase 37 (CE-1): the Tier-2 fallback call for the deterministic phase ledger (src/lib/ledger.js) — fires only when a completed phase's report is missing/unparseable for the required '## Handoff to next phases' section. Roleless (role:null), sessionless (sessionId:null), no projectDir (MCP-free), tools.allowed_default narrowed to ['Read'] via a cfg clone — same session-safety class as lessons-distill/acceptance-check. No hard_floors/escalation_tasks entry in config/model-routing.json on purpose — a single bounded haiku read-and-summarize call never needs escalation.",
+    "phase-scout": "claude-haiku-4-5",
+    "_phase_scout_comment": "Phase 55 (P8, speculative scout / par-08): a concurrent, read-only haiku call (src/auto-runner.js's spawnPhaseScout) that drafts the NEXT phase's file map while the CURRENT phase's dev agent is still running — pure idle-time capture, ships OFF by default (phases.scout.enabled). Roleless (role:null), sessionless (sessionId:null), tools.allowed_default narrowed to verify-loop.js's CHECKER_ALLOWED_TOOLS (read-only) via a cfg clone — same session-safety class as acceptance-check/ledger-extract. No hard_floors/escalation_tasks entry in config/model-routing.json on purpose — the scout never escalates.",
+    "retrospective": "claude-haiku-4-5",
+    "autopsy": "claude-haiku-4-5",
+    "_autopsy_comment": "Phase 62 (structured failure autopsy): the cycle's ONLY new LLM call — ONE bounded haiku reply that turns a failed/error-paused run's deterministic context (pause reason, run_events timeline, errored calls, healing attempts, latest verify counts, log tail) into a structured JSON autopsy at the highest-friction moment (a pause, usually seen on a phone). Roleless (role:null), sessionless (sessionId:null), tools.allowed_default narrowed to [] via a cfg clone (JSON-only reply) — same session-safety class as verify-adjudicate/ledger-extract. The static instruction block is byte-identical across calls (cache rule); all volatile context rides the user prompt. Budget-guarded: when the billing window is 'pause' (or the call fails/returns invalid JSON after one re-ask) it emits the deterministic context as a plain-text autopsy WITHOUT the LLM. Best-effort + never-throws: invoked AFTER finalize persists status, awaited under phases.task_timeout_ms.autopsy, and never blocks or fails a run. No hard_floors/escalation_tasks entry in config/model-routing.json on purpose — it never escalates. See src/lib/autopsy.js and docs/AUTO_RUN.md.",
+    "chat": "claude-sonnet-5",
+    "disc-research": "claude-sonnet-5",
+    "self-dev": "claude-sonnet-5",
+    "self-heal": "claude-sonnet-5",
+    "prompt-eval-judge": "claude-sonnet-5",
+    "_prompt_eval_judge_comment": "Phase 84 (brief 05 P6): the prompt-eval harness's judge call (scripts/eval-prompts.mjs). ONE roleless (role:null, sessionId:null), tool-less (allowed_default:[]) sonnet call PER produced artifact that grades it against a checklist rubric (eval/rubrics/<task>.md) and returns per-item pass/fail — checklist scoring (fraction of items passed), not one scalar, to damp judge noise. Same session-safety class as acceptance-check/autopsy: no hard_floors/escalation_tasks entry in config/model-routing.json on purpose (its reply gets exactly one re-ask via the P1 llm-contract, never a tier escalation). Never runs under npm test (fake judge seam); real evals are billing-guard-gated and scheduled by the P7 autopilot into leftover window headroom.",
+    "autopilot-digest": "claude-haiku-4-5",
+    "_autopilot_digest_comment": "Phase 86 (brief 05 P7b): the OPTIONAL morning-digest polish call (src/lib/autopilot-digest.js maybePolishDigest). The digest is fully DETERMINISTIC text (composeDigest); this ONE roleless (role:null, sessionId:null), tool-less (allowed_default:[]) haiku call only tightens the prose, and ONLY fires when the deterministic text exceeds ~30 lines — so most nights make ZERO extra calls (NFR: digest ≤1 haiku call). Budget-guarded (never runs under a paused window) and fails OPEN to the deterministic text on any error/invalid reply. Same session-safety class as autopsy/lessons-distill: no hard_floors/escalation_tasks entry in config/model-routing.json on purpose (it never escalates). Never runs under npm test (fake-runner seam)."
+  },
+  "billing": {
+    "mode": "max_pooled",
+    "window_reset_hours": 5,
+    "warn_at_calls": 100,
+    "pause_at_calls": 200,
+    "_pause_at_calls_comment": "Raised from 12 to 200 for overnight continuous runs. The 12 was too conservative after the July 2026 incident. warn=100, pause=200 give plenty of room.",
+    "warn_at_cost_usd": 18,
+    "pause_at_cost_usd": 24,
+    "enforce_cost_thresholds": false,
+    "_cost_threshold_comment": "Estimated token-dollar values are observability only for Max-plan operation and do not pause development unless enforce_cost_thresholds is explicitly true. Provider-window units and provider reset/circuit-breaker signals remain enforced regardless.",
+    "allow_api_fallback": false,
+    "provider_circuit_breaker": {
+      "enabled": true,
+      "provider": "anthropic",
+      "account": "max_pooled",
+      "fallback_cooldown_minutes": 30,
+      "safety_buffer_seconds": 60,
+      "_comment": "Shared SQLite account/provider circuit breaker. The first Claude session/usage/weekly-limit response blocks every project and roleless helper before spawn until the advertised reset (plus safety buffer), or the fallback cooldown when no timestamp is present. This prevents cross-project rejection cascades; durable jobs resume after reset. Set enabled:false only for isolated accounts/databases."
+    },
+    "heavy_call_lease": {
+      "enabled": true,
+      "max_concurrent": 1,
+      "lease_ttl_ms": 180000,
+      "heartbeat_ms": 30000,
+      "poll_ms": 2000,
+      "waiter_ttl_ms": 60000,
+      "wait_timeout_ms": 2700000,
+      "cheap_tasks": ["ledger-extract", "autopsy", "autopilot-digest"],
+      "cheap_call_weight": 0.25,
+      "heavy_tasks": [],
+      "_comment": "Account-wide FIFO lease for expensive Claude calls across every orchestrator process and project sharing this SQLite database. One heavy call runs at a time by default; retries release the slot during backoff, a heartbeat renews active work, stale active leases expire after a crash, and polling renews waiting tickets so a dead waiter is reaped after waiter_ttl_ms instead of blocking the FIFO. Unknown and future task IDs are heavy unless explicitly listed in cheap_tasks. Each recorded heavy attempt consumes 1 billing-window admission unit; each cheap_tasks attempt consumes cheap_call_weight (never zero), while raw attempt count remains visible separately. Increase max_concurrent only when the provider account is intentionally sized for parallel calls; enabled:false restores unrestricted spawning."
+    },
+    "window_headroom_pause": true,
+    "_window_headroom_pause_comment": "Phase 79 (P2): the auto-runner's pre-heavy-action window-headroom pause (src/auto-runner.js maybePauseForWindowHeadroom). At 'warn', before dispatching a dev/audit action, if the remaining window can't fit it the run pauses (pause_reason='window-headroom') and schedules a resume for the projected reset. Set false to disable this pause only — the picker's cost-class deferral is unaffected. Fail-open: the pause always auto-schedules a resume, so it never strands a run.",
+    "window_headroom_min_calls": 4,
+    "_window_headroom_min_calls_comment": "Phase 79 (P2): fallback estimate (in heavy-equivalent window admission units) of the next heavy action's cost when predictUpcoming can't pin a per-phase number. At 'warn', if (pause_at_calls − weighted callsInWindow) < this, maybePauseForWindowHeadroom pauses + schedules a resume.",
+    "job_cost_class": {},
+    "_job_cost_class_comment": "Per-action override of src/server/job-queue.js JOB_COST_CLASS. Provider-backed actions—including go/resume/audit/bugs/pipeline/roadmap/brief/brief-chain/next/discuss/review/handoff/guide/context-refresh/retro/eval—are heavy. Deterministic validate/qa/reset-brief/ship/sync actions are cheap. Map an action to 'heavy' or 'cheap' only when its implementation changes. At 'warn' the picker admits cheap work and defers a heavy job once; unknown actions fail safe as heavy.",
+    "fair_share": {
+      "enabled": true,
+      "fair_wait_max_minutes": 15,
+      "_comment": "Phase 54 (par-07): fair-share window admission (src/claude-runner.js admitFairShare, src/billing-guard.js fairShareStatus). When two projects share one billing window and it is merely 'warn' (not 'pause'), a project over its weighted slice (pause_at_calls * billing.priority / sum of active projects' priorities) YIELDS before spawning — sleeping fair_wait_max_minutes at most, re-checking every 60s — so the under-share project claims the remaining window instead of both racing to the pause threshold and killing the loser mid-phase. Project consumption is heavy-equivalent admission units, not raw attempt count. The wait is entirely pre-spawn (zero tokens burn queued), aborts within one iteration on Ctrl-C, and PROCEEDS (never throws) when the wait budget is exhausted — the hard pause_at_calls throw remains the only runaway backstop, untouched by this feature. enabled:false opts out. Per-project fair-share priority goes in projects/<name>/project.json overrides.billing.priority (number > 0, default 1). See docs/ARCHITECTURE.md."
+    }
+  },
+  "budget": {
+    "max_total_calls_per_project_default": null,
+    "_notes": "Set max_total_calls_per_project_default to a number to cap every project. Override per-project in projects/<name>/project.json: overrides.budget.max_total_calls"
+  },
+  "job_runner": {
+    "max_concurrent_projects": "auto",
+    "max_workers_cap": 8,
+    "_notes": "v0.14.4+. 'auto' = one worker per project, capped at max_workers_cap. Or set to a fixed integer (e.g. 2) to override. Extra workers cost almost nothing — they poll every 2s and sleep. Rate limits are burned by running claude subprocesses, not workers themselves. Per-project FIFO ensures one project never uses more than one worker at a time."
+  },
+  "phases": {
+    "review_every_n_phases": 6,
+    "resume_interrupted_session": true,
+    "reconcile_committed_phase_before_spawn": true,
+    "_interrupted_session_comment": "Schema 18: when an account usage reset or process interruption leaves a phase row in-progress, resume its persisted Claude session instead of starting over. If that interrupted run already produced the phase commit AND completion report, skip the duplicate dev spawn and put the existing commit through the normal deterministic validator and acceptance pipeline. Validation-failed markers always block reconciliation. Set either boolean false as an emergency kill switch.",
+    "inline_phase_prompts": true,
+    "_inline_phase_prompts_comment": "v0.14.35: dev prompts built from plan phase spec + decisions.jsonl + brief — no per-phase next-prompt guide call. A prompt.md on disk always wins; the reprompt-on-timeout path still uses the guide. false restores a guide call per phase.",
+    "auto_commit": true,
+    "commit_message_format": "phase-{n}: {summary}",
+    "handoff_when_context_tokens_exceed": 150000,
+    "max_turns_per_phase": 60,
+    "max_turns_per_opus_phase": 60,
+    "_max_turns_per_opus_comment": "Legacy per-project Opus cap. It remains supported, but max_turns_hard_cap is an account-protection ceiling that wins if an inherited project override is higher.",
+    "max_turns_hard_cap": 60,
+    "_max_turns_hard_cap_comment": "Absolute maximum turns for every spawned task. Unlike ordinary per-project phase caps, this ceiling is applied after config resolution, so stale project overrides cannot silently restore 90–140 turn calls. Set null to opt out deliberately.",
+    "max_turns_per_tier": {
+      "sonnet": 60,
+      "opus": 60,
+      "fable": 60
+    },
+    "_max_turns_per_tier_comment": "Per-tier caps resolved from the model id. The final max_turns_hard_cap is applied after task, legacy, tier, and shared caps, so the narrowest cap always wins.",
+    "max_turns_continuation": 25,
+    "max_continuation_attempts": 1,
+    "max_continuation_attempts_hard_cap": 1,
+    "max_continuation_context_tokens": 180000,
+    "fresh_recovery_after_max_turns": true,
+    "fresh_recovery_max_turns": 30,
+    "_continuation_comment": "When a dev/fix call reaches error_max_turns, make at most one bounded same-session continuation while its last-turn context remains below 180k. If it still exhausts—or the session is already too large—make one fresh 30-turn compact recovery from the phase contract and current workspace state. The inherited hard cap prevents stale project overrides from restoring repeated context replay; all terminal outcomes still enter durable pause/resume routing.",
+    "scout": {
+      "enabled": false,
+      "max_staleness_pct": 30
+    },
+    "_scout_comment": "Phase 55 (P8, speculative scout / par-08): OFF by default — dev spawns already receive the full repo map, so the scout's only incremental value is why-relevant annotation on the NEXT phase, unproven until measured against calls-table cost. When enabled, auto-runner.js fires ONE detached, read-only haiku call (task 'phase-scout') CONCURRENTLY with the CURRENT phase's dev action (Promise.allSettled — a scout failure/timeout only ever logs dim, never affects the dev result), pinned via a worktree to the pre-dev HEAD. The orchestrator persists its reply to .guide/phase-<n>-scout.md (guide-paths.js's phaseScoutPath) with base_sha front-matter, since the scout's read-only sandbox cannot Write. buildInlinePhasePrompt's caller (runDev, phase-runner.js) injects the note into phase N+1's dev prompt exactly once (consume-once — the note is deleted after injection, and also deleted if dropped for staleness), never into the cached system prompt.",
+    "_max_staleness_pct_comment": "Phase 55: staleness guard applied when the note is about to be injected — parses the note's own `## Files` list and asks changedFilesSince(workspaceDir, base_sha) how many of those paths have since changed. Over this percentage (or an unresolvable/unparsable base_sha) drops the note (delete + dim log) instead of injecting it — the map may have moved since the scout looked at it.",
+    "turn_budget_by_complexity": {
+      "low": 45,
+      "medium": 60,
+      "high": 60,
+      "critical": 60
+    },
+    "_turn_budget_comment": "v0.17 (complexity-tiered turn budgets): dev/fix spawns cap their turn budget by the phase's routed complexity instead of the flat 150 — a flailing low-complexity phase dies at 60 turns, not 150 turns of superlinearly-growing context. Applied in runDev by clamping the cfg.phases turn caps per call (never raises anything; the narrowest cap still wins); escalated re-runs (escalate marker present) skip the clamp and get the full budget. Calibrate from calls.num_turns (persisted per call since schema 6) before tightening below these generous defaults; set to null/{} to disable.",
+    "turn_prediction": {
+      "enabled": true,
+      "max_predicted_turns": 45,
+      "min_samples": 12,
+      "min_confidence": 0.25,
+      "enforce_heuristic": false,
+      "history_limit": 200
+    },
+    "_turn_prediction_comment": "Plan-time phase sizing learns across all projects from phase_execution_features. It remains advisory until at least min_samples clean historical executions exist; then a confident prediction over max_predicted_turns enters the existing one-regeneration plan gate and asks the planner to split the phase. Provider-limit samples are excluded. enforce_heuristic:false avoids speculative fragmentation before history is trustworthy.",
+    "task_effort": {
+      "plan-creation": "xhigh",
+      "audit": "high",
+      "audit-incremental": "high",
+      "roadmap": "high"
+    },
+    "_task_effort_comment": "v0.17 (MI-4, corrected): per-task reasoning depth via the Claude Code effortLevel setting, passed per-invocation as --settings '{\"effortLevel\":...}' (verified on claude 2.0.53). The adaptive-thinking generation (sonnet-5 / opus-4-8 / fable-5) removed budget_tokens, so the old MAX_THINKING_TOKENS env control is a no-op there — effort is the live lever. Tasks absent from this map keep the CLI/user default (no --settings arg is added, spawn args stay byte-identical). Escalated dev/fix re-runs (escalate marker) get the task's effort bumped one level (unset → high → xhigh). Values: low | medium | high | xhigh.",
+    "subprocess_timeout_ms": 1800000,
+    "_subprocess_timeout_comment": "Wall-clock timeout for each claude subprocess (dev, fix, review, etc). Default 30 min. Override per-project via overrides.phases.subprocess_timeout_ms. Set to null to disable.",
+    "idle_timeout_ms": 300000,
+    "_idle_timeout_comment": "Stall detector (the smart timeout). Kills a subprocess that emits NO stream output for this long — catches hung tests / infinite loops in ~5 min instead of waiting out the full wall-clock. Requires stream-json output (set by claude-runner). null disables. Keep it above your slowest expected single silent command; bound long test/build commands with a timeout in the dev prompt so they don't trip it.",
+    "tool_hang_timeout_ms": 300000,
+    "_tool_hang_timeout_comment": "Smart health: kills the subprocess when a tool call (bash, write, etc.) fires but its result never arrives within this window. Catches hung interactive commands, infinite loops inside bash, or missing tool_result events. Default 5 min. Set to null to disable.",
+    "turn_stall_timeout_ms": 1200000,
+    "_turn_stall_timeout_comment": "Smart health: kills the subprocess when Claude generates output continuously but never completes a turn (no user/result event) within this window. Catches runaway responses or a model stuck generating >100k tokens. Default 20 min. Set to null to disable.",
+    "task_timeout_ms": {
+      "fix-execution": 600000,
+      "acceptance-check": 600000,
+      "acceptance-test-author": 600000,
+      "brief-conformance": 600000,
+      "verify-prescan": 300000,
+      "verify-adjudicate": 300000,
+      "lessons-distill": 300000,
+      "ledger-extract": 120000,
+      "retrospective": 300000,
+      "chat": 600000,
+      "review-slim": 300000,
+      "review-lens": 300000,
+      "phase-scout": 240000,
+      "autopsy": 120000,
+      "prompt-eval-judge": 300000,
+      "autopilot-digest": 120000,
+      "runtime-qa": 600000,
+      "self-heal": 300000
+    },
+    "_task_timeout_comment": "Per-task wall-clock overrides (ms) keyed by task name; falls back to subprocess_timeout_ms when a task isn't listed. fix-execution capped at 10 min — a surgical fix running longer is almost always stuck, not working. acceptance-check capped at 10 min — grading a large monorepo phase (big git diff + many file reads across packages) legitimately takes several minutes; genuine hangs are still caught earlier by idle_timeout_ms (5 min silent) and tool_hang_timeout_ms (5 min). verify-prescan capped at 5 min — phase-28: a fast haiku pass over the numbered criteria + changed-file list, no code reading expected. lessons-distill capped at 5 min — it summarizes an on-disk jsonl file, not implementation work. ledger-extract capped at 2 min (phase-37) — a single Read of one report file plus a short JSON reply, the tightest budget of any roleless task. retrospective capped at 5 min — it reasons over an aggregate JSON already computed by retro.js, no tools, no iteration. autopsy capped at 2 min (phase-62) — a single tool-less haiku reply over deterministic context the orchestrator already assembled; it is awaited best-effort after finalize, so a tight bound keeps a failed run from lingering on the autopsy.",
+    "task_max_turns": {
+      "acceptance-check": 40,
+      "acceptance-test-author": 40,
+      "brief-conformance": 40,
+      "verify-prescan": 15,
+      "verify-adjudicate": 8,
+      "lessons-distill": 10,
+      "ledger-extract": 15,
+      "retrospective": 5,
+      "chat": 30,
+      "review-slim": 15,
+      "review-lens": 15,
+      "phase-scout": 15,
+      "autopsy": 4,
+      "prompt-eval-judge": 10,
+      "autopilot-digest": 4,
+      "runtime-qa": 40,
+      "self-heal": 8
+    },
+    "_task_chat_comment": "chat: the control-plane chat turn (src/chat/chat-engine.js). 30 turns covers a status sweep plus several control-tool calls; heavy work is spawned detached by the tools so a turn never runs a build. 10-min wall-clock in task_timeout_ms — a web/CLI reply loses its audience long before that.",
+    "_task_max_turns_comment": "Per-task hard override (turns) that wins over BOTH max_turns_per_opus_phase and max_turns_per_phase — the narrowest applicable cap always wins. acceptance-check gets 40: it's read-only grading (no builds/tests — the validator gate already ran those), but grading a large monorepo phase means one big git diff plus a Read/Grep per criterion across many files, and multi-criterion phases were chronically hitting the old cap of 20 (~44% of rs checks ended error_max_turns, forcing a truncated re-ask verdict from incomplete analysis). 40 lets the checker finish its evidence-gathering and emit the verdict in a single call. It has no floor and is not in model-routing.json's escalation_tasks, so it never inherits the phase's Opus escalation (stays on the cheap acceptance-check model). verify-adjudicate gets 8 — a tool-less (allowed_default:[]) single reply over two already-produced verdict JSONs plus the criteria list, no code/repo access to iterate over. lessons-distill is capped tight — read + summarize + write one file, no iteration needed. retrospective is capped tightest of all — a single reply over an already-built aggregate JSON, no tool use expected. autopsy gets 4 (phase-62) — a tool-less (allowed_default:[]) single JSON reply over deterministic context the orchestrator already assembled, plus at most one re-ask on invalid JSON before the deterministic fallback; no code/repo access to iterate over."
+  },
+  "auto_run": {
+    "auto_pause_after_phase_1": true,
+    "auto_pause_after_phase_1_min_total_phases": 0,
+    "_auto_pause_after_phase_1_min_total_phases_comment": "phase-64 (intent-based checkpointing, Layer 1 / deterministic): skip the phase-1 checkpoint when the plan has FEWER than this many phases — so a 3-phase tweak doesn't pause as often as a 40-phase build. Only affects the phase-1 checkpoint under checkpoint_policy.mode 'all' (the phase-1 checkpoint doesn't exist in 'intent'/'errors-only'). Default 0 never skips (totalPhases < 0 is impossible) — byte-for-byte today.",
+    "auto_pause_after_review": true,
+    "auto_pause_after_final_phase": true,
+    "auto_pause_after_phases": [],
+    "checkpoint_policy": {
+      "mode": "all",
+      "pause_intents": ["architecture", "destructive"]
+    },
+    "_checkpoint_policy_comment": "phase-64 (intent-based checkpointing, Layer 2): how auto-run decides when to pause after a phase/review/fix completes. mode: 'all' (DEFAULT — every configured auto_pause_after_* checkpoint fires, byte-for-byte pre-phase-64) | 'intent' (pause ONLY before a phase whose plan.json `checkpoint` tag is in pause_intents; the count-based phase-1/final/custom checkpoints and review/fix checkpoints don't fire) | 'errors-only' (pause on phase error + budget ONLY; every completion checkpoint incl. final is skipped). Error + budget pauses are IDENTICAL across all modes, and UNATTENDED mode WINS over any mode (its behavior is unchanged). pause_intents (used only in mode 'intent') selects which phase intent tags stop the run: architecture | schema | external-integration | destructive | routine. Set per-project via overrides.auto_run.checkpoint_policy or the chat set_checkpoint_policy tool. See docs/AUTO_RUN.md.",
+    "auto_pause_on_error": true,
+    "auto_escalate_on_failure": true,
+    "on_double_failure": "pause",
+    "_on_double_failure_comment": "v0.14.43: what happens when Sonnet AND Opus both fail the same FIX: 'pause' (default) or 'skip' (park to parked.md, count round forward, post-round audit re-surfaces the bug). Phases always pause — they build on each other.",
+    "max_chain_rounds": 25,
+    "retry_transient": true,
+    "transient_retry_minutes": 60,
+    "transient_retry_max": 0,
+    "_transient_comment": "v0.14.44: external/API failures (rate limit, overload, 5xx, network) re-enqueue the same job after transient_retry_minutes, recursively. transient_retry_max 0 = unlimited. State-driven jobs re-enter where they left off.",
+    "_max_chain_rounds_comment": "v0.14.43: hard ceiling for the ♾ until-clean audit chain.",
+    "_auto_escalate_comment": "v0.14.38: first non-timeout dev/fix failure retries IN-RUN on opus (escalation marker + validation-failed excerpt in prompt) instead of pausing; pause only when the opus attempt also fails. false restores pause-on-first-failure.",
+    "auto_reprompt_on_timeout": true,
+    "max_auto_reprompt_attempts": 1,
+    "max_escalation_hops": 2,
+    "_max_escalation_hops_comment": "phase-23: how many tier-relative escalated retries a single phase/fix gets per run before pausing. Each hop steps one rung up the ladder (sonnet→opus→fable); a hop to fable is skipped when the billing window is not 'ok'. Default 2 = e.g. sonnet-baseline failure retries on opus, then on fable, then pauses.",
+    "auto_pause_on_budget_warn": false,
+    "max_phases_per_run": 9999,
+    "delay_between_calls_ms": 2000,
+    "run_final_review_before_qa": true,
+    "warn_on_missing_phase_report": true,
+    "chain_audit_to_bugs": false,
+    "audit_runs_after_completion": 0,
+    "review_auto_proceed_score_threshold": 85,
+    "raw_thoughts_auto_brief": true,
+    "auto_promote_audit_bugs": true,
+    "async_reviews": false,
+    "_async_reviews_comment": "phase-52 (par-03): fire a mid-stream 3-phase review (never the final review) WITHOUT awaiting it, so phase N+1's dev dispatches immediately instead of blocking ~5min on the verdict. Default false preserves today's fully-synchronous behavior byte-for-byte -- it changes PAUSE TIMING (a BLOCKER/sub-threshold verdict now pauses one phase later than today, and the overlapped phase's push is not held), so enable per-project only after confirming one clean run. See docs/AUTO_RUN.md.",
+    "convergence": {
+      "enabled": true,
+      "stall_min_recurring": 2
+    },
+    "_convergence_comment": "phase-43 (P7): per-finding cross-round recurrence detection (title-Jaccard + shared-file match against .guide/audits/finding-history.jsonl). enabled:false skips history writes entirely and makes promoteAuditToBugs's return + bugs.md byte-identical to pre-P7. stall_min_recurring: how many findings in ONE round must recur from prior rounds before job-runner's chain loop / auto-runner's FR20 refuse to run another fix round (a single finding seen in >=3 total rounds also stalls, regardless of this threshold). The existing promote --force flag always suppresses the stall (operator override) but still records the recurrence.",
+    "max_parallel_phases": 1,
+    "_max_parallel_phases_comment": "Phase 65 (Execution DAG P1, inert scaffolding): kill switch for the future parallel-lane scheduler — the max number of independent (per plan.json depends_on) phase git-worktree lanes that may run concurrently. 1 (default) is today's exact serial path; no scheduler reads this key yet, so raising it currently has zero effect until a later phase in this cycle wires up src/migrate-lanes.js's phase_lanes table + parallel_lanes config into auto-runner.js. Bounded by config/defaults.json's brief-level invariant: wave size never exceeds this cap.",
+    "speculative_duo_on_double_failure": false,
+    "_speculative_duo_on_double_failure_comment": "Phase 72 (brief P6, MI-8): opt-in last resort before a force_tier-critical PHASE pauses. When a phase forced to a top tier by a force_tier keyword rule (regulatory-core/security-core in config/model-routing.json) has burned its attempt AND its escalation ladder and would otherwise pause, race exactly two competing retry legs — opus and fable — concurrently in separate git-worktree lanes (src/lib/duo-executor.js), with the acceptance checker as JUDGE; merge the winner (pass beats fail; fewer-unmet wins; tie→fable), else pause. false (default) is today's exact pause-on-double-failure behavior — with it off ZERO duo code runs (mode isolation). FIXES never duo (they park via on_double_failure). Fires at most once per phase per run (consumes the phase's terminal retry — no duo-of-duos), self-gates on windowStatus() headroom for 4 calls (2 legs + 2 judges) before warn_at_calls — no new budget math. SAFETY-CRITICAL: git reset --hard's the REAL workspace to origin tip to discard the failed attempt, guarded by aheadBehind + a per-commit subject check (aborts on anything pushed/diverged/foreign).",
+    "auto_brief_chain": {
+      "_comment": "Automatically chain to the next brief from inputs/brief-queue/ once all phases + bug rounds complete. Set enabled:true per-project via project.json overrides. Drop briefs as NN-name.md into the queue folder — they are popped in alphabetical order.",
+      "enabled": false,
+      "audit_before_chain": true,
+      "brief_queue_dir": "inputs/brief-queue"
+    }
+  },
+  "bug_cycle": {
+    "max_fixes_per_round": 30,
+    "review_after_round": true,
+    "max_parallel_fixes": 1,
+    "_max_parallel_fixes_comment": "Phase 65 (Execution DAG P1, inert scaffolding): kill switch for the future parallel fix-lane scheduler — the max number of independent fixes from one round's fix-plan that may run concurrently in separate git worktrees. 1 (default) is today's exact serial fix path; no scheduler reads this key yet.",
+    "batch_minor_fixes": false,
+    "_batch_minor_fixes_comment": "Phase 65 (Execution DAG P1, inert scaffolding): kill switch for a future feature that groups several minor-severity fixes from the same round into one combined dev spawn instead of one spawn per fix. false (default) preserves today's exact one-fix-per-spawn behavior; no code path reads this key yet.",
+    "batch_max": 4,
+    "_batch_max_comment": "Phase 65 (Execution DAG P1, inert scaffolding): the max number of minor fixes a future batch_minor_fixes grouping may combine into a single dev spawn. Unused while batch_minor_fixes is false."
+  },
+  "parallel_lanes": {
+    "dir": ".worktrees",
+    "node_modules": "symlink",
+    "_comment": "Phase 65 (Execution DAG P1, inert scaffolding): where/how a future parallel-lane scheduler materializes a per-phase/fix/duo git worktree. `dir` (relative to the project's workspace/) is the parent directory each lane's worktree is created under. `node_modules`: 'symlink' (default) — a new lane symlinks the primary workspace's node_modules instead of reinstalling; 'none' — a lane gets no node_modules (for lanes whose dev prompt is expected to run its own install). No code path creates a worktree or reads this block yet — src/lib/git.js remains the sole git entrypoint for when this DOES get wired up in a later phase of this cycle."
+  },
+  "ship_gate": {
+    "enabled": true,
+    "audit_level": "high",
+    "license_allowlist": [
+      "MIT",
+      "MIT-0",
+      "ISC",
+      "0BSD",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "Apache-2.0",
+      "Unlicense",
+      "CC0-1.0",
+      "CC-BY-4.0",
+      "BlueOak-1.0.0",
+      "Python-2.0",
+      "WTFPL",
+      "Zlib"
+    ],
+    "_comment": "phase-44 (P1 ship gate): a deterministic, zero-LLM scan (src/lib/ship-gate.js) run before any promotion — /ship (before the FF merge), /package (before zipping), and read-only inside qa-handoff. Scans the diff <baseline>..HEAD for hardcoded secrets (regex bank, placeholders/process.env suppressed, REDACTED excerpts), runs `npm audit --omit=dev` counting vulns at/above audit_level as blockers (network/registry failure is only a warning), and flags new DIRECT deps whose license isn't in license_allowlist (blocker) or that aren't named in the active brief (warning). enabled:false or --skip-gate bypasses; with either, the ship/package path is byte-identical to pre-gate behavior. Defense-in-depth, not a jail — heuristic by design.",
+    "_audit_level_comment": "phase-44: npm audit severity floor treated as a blocker — one of info|low|moderate|high|critical. Default 'high' blocks high+critical vulns; moderate/low/info stay informational. A value outside this set errors naming the config layer (ship_gate.audit_level).",
+    "_license_allowlist_comment": "phase-44: SPDX license ids considered acceptable for a NEW direct dependency. Any new dep whose node_modules/<pkg>/package.json license is outside this list is a blocker; a missing node_modules entry is a warning ('unknown'), never a blocker. Matched case-insensitively."
+  },
+  "brief_conformance": {
+    "enabled": true,
+    "block_on_missing": true,
+    "fail_open": true,
+    "_comment": "phase-47 (P4 brief conformance): a back-of-pipeline FR->evidence check (src/lib/brief-conformance.js), the complement to the front-of-pipeline plan-coverage gate (which checks brief FR -> plan phase, before phase 1; left untouched). Wired into auto-runner.js's phases-done block immediately before setProjectStatus(project, 'ready-for-qa') — one fresh, roleless (role:null, sessionId:null) read-only checker spawn grades every brief FR and Definition-of-done item against the code as committed, re-fired only when the active brief's content hash has moved since the last persisted .guide/brief-conformance.json. enabled:false skips the gate entirely (byte-identical to pre-phase-47 behavior: straight to ready-for-qa).",
+    "_block_on_missing_comment": "phase-47: when the verdict has any FR/DoD item with status 'missing', insert one deduped bug_inbox row per missing item (source: 'brief-conformance', severity: 'major') and pause BEFORE ready-for-qa instead of setting it, with the pause reason naming the missing FR ids and pointing at .guide/brief-conformance.md. 'partial' items never block on their own — they are only surfaced in the rendered matrix for the tester. false restores the pre-phase-47 behavior of reaching ready-for-qa regardless of the verdict (the matrix is still written and still embedded in qa-handoff).",
+    "_fail_open_comment": "phase-47: when the checker never produces a valid verdict (spawn failure, or still-invalid JSON after the one re-ask), the persisted verdict is stamped '_status: inconclusive'. true (default) does NOT block ready-for-qa on an inconclusive verdict — same fail-open philosophy as verify.fail_open. false blocks ready-for-qa until a conclusive verdict is produced (delete .guide/brief-conformance.json to force a re-check)."
+  },
+  "security": {
+    "deny_rules": [
+      "Read(../../../config/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
+    ],
+    "env_mode": "allowlist",
+    "env_passthrough": [],
+    "_comment": "phase-45 (P3, filesystem deny-rule sandbox): Claude Code permission patterns merged into every spawned session's workspace/.claude/settings.json (permissions.deny) — deterministically, via src/lib/workspace-skills.js's mergeDenyRules, at workspace-claude-md generation AND re-merged in the auto-run preflight so LIVE projects pick up new rules with no regeneration. Closes the HIGH-PROBABILITY Read-tool paths to secrets outside the workspace: the real secrets are files three dirs up (config/*.json), plus ~/.ssh, ~/.aws, ~/.gnupg and the Claude credentials. Bash(git push*) is ALWAYS enforced regardless of this list (workspace-skills.js's PUSH_DENY_RULE).",
+    "_deny_rules_comment": "phase-45: each entry must match the Tool(pattern) shape (/^[A-Za-z]+\\(.+\\)$/), validated per-layer in src/config-validator.js's validateDenyRules naming the offending config layer. The relative config-dir rule ALSO gets an absolute-path twin (Claude Code's // absolute-rule form) emitted at merge time so it holds under symlinked/nested workspaces; the twin is stable per install so the merge stays idempotent. DEFENSE-IN-DEPTH, NOT A JAIL: `Bash(cat ../../../config/telegram.json)` is NOT covered by a Read() rule — P3's env allowlist and phase-44's ship gate are the complementary layers. DO NOT add a blanket Read(../**) or ANY rule covering ../.guide — dev agents must keep reading ../.guide decisions/reports.",
+    "_env_mode_comment": "phase-46 (P2, secondary hygiene): controls which vars a spawned claude subprocess inherits from the operator's shell env (src/claude-runner.js's buildChildEnv, the single spawn site used by every task — guide/dev/fix/checker/chat). 'allowlist' (default) passes only PATH/HOME/SHELL/USER/LOGNAME/TMPDIR/TERM/TZ/LANG plus LC_*/CLAUDE_*/XDG_* prefixes plus HTTP_PROXY/HTTPS_PROXY/NO_PROXY (both cases) plus anything listed in env_passthrough — every other var (CI tokens, cloud creds, personal API keys sitting in the operator's shell) is dropped. 'inherit' reproduces the exact pre-phase-46 full-env-spread behavior as the rollback switch. ANTHROPIC_API_KEY is stripped in BOTH modes regardless of this setting or env_passthrough — Max plan OAuth billing depends on its absence. DEFENSE-IN-DEPTH, NOT A JAIL: this is shell-var hygiene only (CI/cloud creds) — it does NOT protect the file-based bot tokens under projects/<name>/.guide, that's phase-45's filesystem deny-rule sandbox's job.",
+    "_env_passthrough_comment": "phase-46: extra vars restored in 'allowlist' mode beyond the built-in allowlist — each entry is either an exact var name (e.g. 'MY_CI_TOKEN') or a trailing-`*` prefix (e.g. 'MY_PREFIX_*'). Default [] — no project needs this until a real case shows up (e.g. a validator chain that shells out to a tool reading a specific env var). Ignored in 'inherit' mode (everything already passes through). ANTHROPIC_API_KEY listed here would still be stripped — see env_mode above."
+  },
+  "model_routing": {
+    "enabled": true,
+    "tier_order": ["haiku", "sonnet", "opus", "fable"],
+    "tier_models": {
+      "haiku": "claude-haiku-4-5",
+      "sonnet": "claude-sonnet-5",
+      "opus": "claude-opus-4-8",
+      "fable": "claude-fable-5"
+    },
+    "_fable_comment": "v0.17 (schema 6): 4th rung above opus, reachable only via force_tier keyword rules (regulatory-core/security-core in config/model-routing.json) — never a baseline. src/config-migrator.js backfills this entry into resolved configs whose project/user override clobbered tier_models wholesale, and routeModel clamps an unreachable fable back to opus, so legacy configs keep working either way.",
+    "show_reasoning_in_log": true,
+    "telemetry": {
+      "enabled": true,
+      "_enabled_comment": "Phase 56 (MI-5): telemetry-learned routing floors. When true, auto-runner.js's autoRun() preflight (applyTelemetryRoutingFloors) reads recorded calls-table outcomes for each project's dev-execution / fix-execution tasks and rewrites projects/<name>/routing-extension.json's task_floors from RULES over that telemetry (src/lib/routing-telemetry.js's computeRoutingAdjustment — pure, deterministic, no LLM). routeModel then honors those floors at Step 6.5 (maxTier) so a project whose phases keep failing on sonnet starts the next phase on opus directly instead of paying the fail-then-escalate double bill every time. SAFE BY DEFAULT despite enabled:true — the rewrite is a NO-OP until the telemetry actually shows a repeated failure pattern (>= min_samples sonnet calls at >= escalate_fail_rate), so a fresh or healthy project's routing is byte-identical to pre-phase-56. Read-only over the calls table (zero new writes); the only write is an atomic, non-destructive rewrite of routing-extension.json (keyword_rules and any hand-authored non-dev/fix floors are preserved). false stops the rewrites but routeModel still honors whatever task_floors are already on disk (so a hand-authored floor keeps working). A legacy config whose model_routing override predates this key reads enabled !== true and is left untouched — read-side back-compat.",
+      "window_calls": 12,
+      "_window_calls_comment": "Phase 56: how many of the newest calls-table rows per project × task the learned-floor decision looks at (recentCallsForProjectTask ORDER BY started_at DESC LIMIT this). The window over which both the raise signal (sonnet is_error rate) and the decay streak are measured.",
+      "min_samples": 6,
+      "_min_samples_comment": "Phase 56: minimum number of SONNET-tier calls that must appear in the window before a raise fires — below this the rate is too noisy to trust and no floor is learned (a project with only a handful of sonnet runs is never escalated on thin evidence).",
+      "escalate_fail_rate": 0.33,
+      "_escalate_fail_rate_comment": "Phase 56: the is_error RATE on sonnet-tier rows (fail count / sonnet samples) at or above which the task's floor is raised to opus. is_error rate ~= escalation rate because every is_error dev result writes the phase-23 escalate marker (verdict correction — NOT lessons.jsonl kind='escalation', which is only written on the timeout path and undercounts). 0.33 = roughly one in three recent sonnet phases failing.",
+      "decay_streak": 5,
+      "_decay_streak_comment": "Phase 56: how many of the newest rows for the task must ALL have run at >= the floor tier, with is_error == 0, AND finished within 50% of that tier's turn cap (phases.max_turns_per_tier / max_turns_per_phase) before the learned floor is removed. A NULL num_turns row (pre-foundations history or an errored call) never satisfies the streak, so an old project with no per-call turn data can never spuriously decay a floor. The floor is CAPPED at opus and never learns fable (brief-01: fable is failure-terminal only)."
+    }
+  },
+  "tools": {
+    "allowed_default": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+    "denied_default": [],
+    "permission_mode": "acceptEdits",
+    "task_profiles": {},
+    "_task_profiles_comment": "phase-46: optional per-task --allowedTools override map (task name -> array of tool names), consulted in runClaude ONLY when the caller's allowedToolsOverride parameter is left at its null default — an explicit parameter (chat engine's MCP-only allowedToolsOverride:[], verify-loop's checker-sandbox tools.allowed_default clone, etc.) always wins outright and never sees this map. Default {} = zero behavior change; every dev/fix/guide/review call keeps using tools.allowed_default exactly as before. Loosening/tightening a specific task's live tool access needs its own shadow-run validation before shipping a non-empty entry — this phase ships the config seam only, no default profiles. Task names are unrestricted for forward-compat; validated in src/config-validator.js's validateTaskProfiles (array-of-strings values only, per-layer error naming)."
+  },
+  "paths": {
+    "workspace_subdir": "workspace",
+    "guide_subdir": ".guide",
+    "inputs_subdir": "inputs",
+    "outputs_subdir": "outputs",
+    "logs_per_project": true
+  },
+  "workspace_claude_md": {
+    "auto_generate_on_new": true,
+    "auto_generate_during_autorun": true,
+    "preserve_existing": true,
+    "generate_skills": true,
+    "_generate_skills_comment": "Phase 10: also materialize workspace/.claude/skills/{phase-report,commit-conventions,orchestrator-context}/SKILL.md (byte-identical copies of prompts/skills/*) and merge a git-push deny rule into workspace/.claude/settings.json whenever the workspace-claude-md guide task runs. Deterministic (no LLM call) — see src/lib/workspace-skills.js. Respects preserve_existing for the skill files; the settings.json merge is always additive/idempotent regardless. Set false to disable independently of CLAUDE.md generation itself."
+  },
+  "logging": {
+    "level": "info",
+    "persist_full_transcripts": true,
+    "transcript_dir": "logs"
+  },
+  "cleanup": {
+    "enabled": true,
+    "logs_retention_days": 30,
+    "logs_max_files": 5000,
+    "outputs_retention_days": 14,
+    "calls_retention_days": 90,
+    "min_age_minutes": 60,
+    "run_on_server_start": true,
+    "run_interval_hours": 6,
+    "run_events_retention_days": 90,
+    "_run_events_retention_days_comment": "Phase 57 (P1, run_events timeline): run_events rows older than this many days are best-effort DELETEd during auto-run preflight (auto-runner.js), not the server-wide log-cleanup.js sweep — run_events is scoped to auto_runs, not logs/outputs/calls. 0 disables the sweep entirely (never deletes)."
+  },
+  "wake_lock": {
+    "enabled": true,
+    "_comment": "On macOS, runs `caffeinate -i -s` during claude calls / auto-runs / server lifetime. No-op on Linux. Set false to disable entirely."
+  },
+  "validators": {
+    "enabled": true,
+    "default_timeout_ms": 60000,
+    "default_gate": true,
+    "default_test_timeout_ms": 180000,
+    "default_check_timeout_ms": 30000,
+    "_comment": "External validators run after dev/fix executions per project's validators.json. Set enabled:false to disable globally; per-project override via overrides.validators.",
+    "_default_gate_comment": "v0.14.35: hard gate inside runDev — configured chains first; projects without validators.json fall back to npm test (if a real test script exists) else node --check on changed JS. Failing phases get ONE mechanical retry with the output injected, then fail without completing/pushing. default_gate:false disables only the built-in fallback."
+  },
+  "test_first": {
+    "enabled": false,
+    "_comment": "Phase 81 (brief 05 P4a, blueprint QL-3 weakened): opt-in test-first harness. When enabled, runDev authors a FAILING (red) test and commits it BEFORE the dev spawn, then re-reads preSha so the no-commit guard + changedFilesSince measure only the dev's work (src/lib/test-first.js, src/lib/phase-runner.js). Default false = today's exact behavior (byte-identical; the whole hook is gated on this flag). Enable per-project via overrides.test_first.enabled:true; opt a single phase out with a plan.json phase `test_first: false` kill switch. Non-JS workspaces (no package.json / JS-TS sources) are skipped with a dim log — the harness NEVER fails a phase for lacking a JS test runner. NOTE: the author spawn + red-test-as-validator gate wiring land in P4b; with P4a alone this flag only wires the skip path, the commit helper, the red-check primitive, and the preSha re-read seam."
+  },
+  "verify": {
+    "enabled": true,
+    "mode": "gate",
+    "_mode_comment": "phase-25: 'gate' is now the DEFAULT for EVERY project — a fail verdict triggers the bounded refine → escalation ladder before the phase can complete/push. 'report' = verdict recorded, never blocks (shadow mode); restore the old record-only behavior exactly on any single project via overrides.verify.mode:\"report\". 'off' = skip the checker entirely.",
+    "async_report": true,
+    "_async_report_comment": "phase-51 (P1 async report-mode / par-02): when verify.mode is 'report', run the acceptance check OFF the phase critical path instead of inline before markPhaseCompleted/pushBranch. The report-mode verdict never blocks completion anyway, so a 2-5 min read-only checker call serialized into every phase is pure latency (~1.5-3h on a 40-phase run). true (default): the auto-runner's dev actions pass deferVerify — runDev completes+pushes immediately and attaches result.deferred_verify = { phaseN, phaseMeta, preSha, commitSha }; auto-runner then hands that job to a single detached background checker (verify-loop.js's runDetachedAcceptanceCheck, run against a git worktree pinned to the phase commit so changedFilesSince(preSha..HEAD) stays correct). auto-runner caps ONE outstanding background check, awaits it before ANY guide action (review/audit/bug-plan read verify.json + lessons) and inside finalize(), and a rejected check degrades advisory-only. false restores the pre-phase-51 inline behavior byte-for-byte. IGNORED unless mode is 'report' — gate mode is ALWAYS synchronous (a failing gate verdict blocks completion, which a deferred check structurally cannot do), and fixes never defer. Advisory-only, so unlike every other new key this defaults to a NEW behavior, not the old one (brief NFR read-side back-compat: this key + audit.scan_shards are the two documented exceptions).",
+    "max_refine_attempts": 1,
+    "_refine_comment": "July 2026 workload calibration: one targeted refine resumes the dev session with must_fix evidence, then a still-failing phase exits to the normal fresh-session recovery/escalation path. Multiple same-session refines repeatedly re-read a large context and duplicated the later escalation ladder. Set higher per project only when acceptance fixes reliably need iterative in-session work.",
+    "skip_when_no_criteria": true,
+    "_skip_comment": "Phase has no acceptance_criteria in plan.json → skip the checker (goal-only phases are graded by the 3-phase review instead).",
+    "fail_open": true,
+    "_fail_open_comment": "phase-26: NOW ACTUALLY WIRED into the phase-runner hook (previously accepted but never read). Checker infrastructure failure (spawn error, or a still-invalid verdict JSON after the re-ask AND the opus fallback attempt) does NOT block the phase; logs a warning, records verdict='inconclusive', and records a 'verify-unverified' lesson. Set false to fail the phase/fix outright on an inconclusive verdict (no completion, no push).",
+    "include_fixes": "major+",
+    "_include_fixes_comment": "phase-30: three-valued — false (never verify fixes) | true (verify every fix) | 'major+' (DEFAULT — verify only fixes whose severity is critical/major; a missing severity counts as major, i.e. gets verified). Changing the default from false to 'major+' turns fix-checking ON for every project. A fix entry with no acceptance_criteria always skips (dim log), independent of this setting. Legacy boolean overrides (project.json/user.json still carrying `include_fixes: true|false`) keep working exactly as before — config-resolver's deepMerge just overwrites the key, no migration needed.",
+    "cadence": {
+      "mode": "checkpoints",
+      "every_n_phases": 3,
+      "always_final": true,
+      "always_complexities": ["high", "critical"],
+      "always_checkpoints": [
+        "architecture",
+        "schema",
+        "external-integration",
+        "destructive"
+      ]
+    },
+    "_cadence_comment": "Schema 18, July 2026 workload calibration: checkpoints is now the default. Every commit still receives deterministic validation; routine phases get safely mapped targeted tests, while every Nth phase plus every final, high/critical-complexity, or named checkpoint phase runs the full suite and LLM acceptance checker. Set mode to every-phase per project when every phase needs an independent LLM verdict. Fix verification keeps its existing include_fixes/severity behavior.",
+    "tiering": {
+      "small": {
+        "max_criteria": 4,
+        "max_files": 8,
+        "max_turns": 30
+      },
+      "large": {
+        "min_files": 26,
+        "min_criteria": 9,
+        "max_turns": 60
+      },
+      "default_max_turns": 40,
+      "skip_docs_only": true,
+      "docs_only_globs": ["**/*.md", "docs/**"]
+    },
+    "_tiering_comment": "phase-26 (MI-9 + acceptance-check-right-sizing): resolveCheckerBudget scales the checker to the diff instead of pinning every phase to a flat 40 turns. Small checks (up to 4 criteria / 8 files) use Haiku with 30 turns; large checks use the configured acceptance model with up to 60; the middle bucket is dynamically capped. The checker receives a bounded orchestrator-compiled patch/report evidence bundle and no Bash tool, reducing exploration turns and denied commands. Docs-only changes skip the LLM checker.",
+    "prescan": {
+      "min_files": 1000000,
+      "min_diff_lines": 100000000
+    },
+    "_prescan_comment": "The historical extra Haiku evidence pre-scan is disabled by the deliberately unreachable defaults. Acceptance now receives the committed patch/report as a deterministic bounded bundle, so an extra model call normally duplicates discovery. A project may lower either threshold to opt the prescan back in for an exceptionally large monorepo after measuring checker turns.",
+    "chunking": {
+      "enabled": false,
+      "min_files": 30,
+      "min_criteria": 5
+    },
+    "_chunking_comment": "phase-28 (QL-10, dark-launched): planCheckerChunks (verify-loop.js) partitions a phase's acceptance criteria into 2-3 groups by file-overlap; runAcceptanceCheck then runs one FRESH checker call per chunk (every chunk prompt still lists the FULL changed-file list) and merges the per-chunk verdicts into one persisted verify.json via criteria-array concatenation + decideVerdict union semantics. DEFAULT OFF (enabled:false) — this is a rollout gate, not a finished feature: only flip it on for a project once calls-table data shows acceptance-check is still hitting error_max_turns at the post-phase-26 budget caps (large bucket, 60 turns). min_files/min_criteria are the AND-gate thresholds checked alongside enabled before planCheckerChunks is ever consulted.",
+    "panel": {
+      "enabled": false,
+      "trigger": "critical"
+    },
+    "_panel_comment": "phase-29 (adversarial dual checker): DEFAULT OFF (enabled:false). When true, runPhaseAcceptanceCheck routes any PHASE (never a fix) whose routed complexity equals `trigger` to verify-loop.js's runAcceptancePanel instead of the single runAcceptanceCheck — two independent fresh-session checker calls over the same inputs (checker A neutral, checker B adversarial:true — one fixed literal block appended, otherwise byte-identical), deterministically merged (a criterion is unmet if EITHER checker says so). On effective pass/fail disagreement between the two checkers' own verdicts, ONE bounded opus call (models['verify-adjudicate'], tools.allowed_default:[], task_max_turns['verify-adjudicate']) adjudicates; agreement never spends that call, and an adjudication failure fails OPEN to checker A's own outcome. The merged/adjudicated verdict is what persists to verify.json; both raw checker verdicts + the adjudication (if any) also persist to verify-panel.json for inspection. Cost stays bounded to critical phases only — never high/medium/low."
+  },
+  "audit": {
+    "two_stage": true,
+    "force_full_every_n": 5,
+    "skip_adjudication_when_clean": true,
+    "stop_on_recurring_findings": true,
+    "scan_shards": 2,
+    "shard_min_files": 150,
+    "_stop_on_recurring_findings_comment": "Phase 34: circuit breaker for the audit→bugs→fixes auto-chain. When a re-audit promotes the IDENTICAL finding set (sha256 fingerprint of sorted bug titles, bug_rounds.audit_fingerprint) that the previous round already ran a full fix round against, stop the chain BEFORE another fix round — fixes are not landing; burning rounds until max_chain_rounds buys nothing. Stops on the FIRST identical re-promotion. Lives ONLY in the chain loop (src/server/job-runner.js runAuditChain) — manual `ashmero audit` and single autoRun invocations are unaffected. NULL fingerprints (legacy rows, clean audits) never trigger it. false restores today's behavior (chain runs until clean/blocker/ceiling).",
+    "_force_full_every_n_comment": "v0.14.48: force a full (non-incremental) audit every N consecutive incrementals, and ALWAYS when HEAD is unchanged since the last audit — so incremental scoping can never go blind on untouched code. Set 0 to disable the periodic full (unchanged-HEAD full still applies).",
+    "_two_stage_comment": "v0.14.36: full audits run Sonnet scan (candidates with evidence) then Opus adjudication over the candidate list — Opus input drops from O(codebase) to O(findings). Incremental re-audits stay single-call. false restores the single Opus full audit.",
+    "_skip_adjudication_when_clean_comment": "Phase 33 (QL-5): when the two-stage full audit's scan stage provably finds ZERO candidates (isCleanScan() — the machine-parsed 'candidates: 0' trailer AND no CAND-<n> headings), skip the whole adjudication call and have the orchestrator write the final clean audit file directly. Fail-safe: anything not provably clean (missing/malformed trailer, trailer/heading mismatch, unreadable scan) still adjudicates exactly as before. false restores paying for an adjudication call on every clean scan.",
+    "_scan_shards_comment": "Phase 53 (par-06): the full audit's scan stage is the long pole (it reads the whole tree) — split it across up to this many concurrent role:null Sonnet spawns, each scoped to a disjoint set of top-level directories (buildAuditShards, greedy bin-packed by file count). 1 (or any value <=1) restores today's single scan call. Only takes effect on repos with >= shard_min_files tracked files; smaller repos always take the single-scan path unchanged. Any shard rejecting/erroring/missing its output file falls back to ONE full single scan (the one retry) — no partial-shard adjudication, ever.",
+    "_shard_min_files_comment": "Phase 53 (par-06): minimum `git ls-files`-tracked file count in the workspace before audit.scan_shards takes effect — repos below this run today's exact single-scan path (byte-identical prompt, no behavior change). 150 is a rough 'sharding pays for itself' threshold; tune per project via overrides.audit.shard_min_files."
+  },
+  "fixes": {
+    "inline_fix_prompts": true,
+    "_inline_fix_prompts_comment": "v0.14.37: fix prompts built from the round's plan.json entry + bugs.md pointers — no per-fix fix-prompt guide call. /spend showed fix-prompt-gen at 505 calls writing 5.3M output tokens, ~1:1 with fix-execution itself. A prompt.md on disk always wins. false restores a guide call per fix."
+  },
+  "skip_analyze": {
+    "enabled": true,
+    "on_go_start": true,
+    "_on_go_start_comment": "Run once at the start of every go/resume before the main loop. Catches gaps left by prior interrupted runs.",
+    "every_n_phases": 5,
+    "_every_n_phases_comment": "Also run periodically during a run — after every N completed plan phases. Set to 0 or null to disable the periodic check.",
+    "checks": {
+      "db_integrity": true,
+      "_db_integrity_comment": "Phase row exists, status=completed, commit_sha present.",
+      "phase_commits": true,
+      "_phase_commits_comment": "commit_sha is reachable in the workspace git repo.",
+      "files_expected": true,
+      "_files_expected_comment": "Every path in plan phase.files_expected exists on disk.",
+      "phase_reports": false,
+      "_phase_reports_comment": "phase report (.guide/phases/.../report.md) exists. Off by default — dev phases don't always write reports."
+    }
+  },
+  "lessons": {
+    "enabled": true,
+    "inject_top_k": 5,
+    "max_lesson_chars": 500,
+    "distill_after_entries": 50,
+    "global": {
+      "enabled": true,
+      "inject_top_k": 3,
+      "first_phases": 3,
+      "max_lines": 200,
+      "_comment": "Phase 80 (brief 05 P3) cross-project global lessons: ~/.ashmero-orchestrator/global-lessons.jsonl (beside user.json), rows { ts, project, tags, lesson, last_matched }. Written by extending the EXISTING lessons-distill call with one static instruction to emit a ## GENERAL section (bracketed stack tags per line) — ZERO extra LLM calls; finalizeDistillation parses it, sanitises each line, appends here, and strips it from the per-project distilled file. Injected (sanitised AGAIN) into plan-creation and the first `first_phases` dev phases, ranked by stack-tag overlap at weight 3 (STRICTLY below the local file-overlap weight 10, so local knowledge always wins), capped at inject_top_k. enabled:false disables both write (## GENERAL instruction dropped, prompt byte-identical to pre-phase-80) and inject. first_phases: only dev phase numbers <= this get global lessons (early phases benefit most). max_lines: LRU cap on the global file by last_matched (oldest-matched evicted first). A missing global-lessons.jsonl is a no-op that leaves the per-project flow unchanged."
+    },
+    "_comment": "Phase 8 learning loop. enabled: master kill-switch for capture (recordLesson becomes a no-op-by-config check at read sites) and injection. inject_top_k: max raw lessons.jsonl entries surfaced per dev prompt, ranked by file/keyword overlap with the phase (no embeddings). max_lesson_chars: truncation cap applied to each captured lesson excerpt. distill_after_entries: once .guide/lessons.jsonl exceeds this many valid lines, the next guide-opportunity check triggers a lessons-distill task that compresses it into .guide/lessons-distilled.md and truncates the raw backlog. global: cross-project shared lessons (see global._comment)."
+  },
+  "llm_contract": {
+    "enabled": true,
+    "max_reasks": 1,
+    "escalate_on_second_fail": false,
+    "_comment": "Brief 08 / P1(b) generalized output-contract (src/lib/llm-contract.js runWithContract). Wraps structured guide outputs that were previously trusted blindly — fix-plan.json (bug-plan, AJV-validated against config/schemas/fix-plan.schema.json), project-context.md and lessons-distilled.md (deterministic markdown validators: required headings + length bounds), and plan.json (reuses validatePlanStructure). On a validation miss the contract resumes the SAME guide session for ONE re-ask naming the file + errors, then fails OPEN (logs a warning and proceeds — bug-cycle/plan control flow is unchanged). enabled:false restores the pre-P1b behaviour byte-for-byte: fix-plan is read in a silent try/catch, the markdown artifacts are not re-checked, and plan.json keeps its existing BLOCKER auto-regen only.",
+    "_max_reasks_comment": "Re-ask budget per contract call (foundations 'every loop bounded' rule). 1 = the single session-resumed re-ask verify-loop already uses. Applies to the markdown + fix-plan artifact contracts; plan-creation's re-ask stays pinned at the historical single BLOCKER auto-regen budget regardless of this value (its structRegenMarker sentinel is the cross-invocation guard).",
+    "_escalate_on_second_fail_comment": "When true, a still-failing REPLY-seam contract re-runs ONCE on the next model tier up (resolved via src/model-router.js TIER_ORDER). Default false. The P1b adoption sites all use the ARTIFACT seam on an already-written file, where escalation (a fresh call on the original prompt) does not apply — they always run fail-open — so this flag only affects future reply-seam callers (e.g. P5 runtime-qa)."
+  },
+  "auto_heal": {
+    "enabled": true,
+    "self_heal_orchestrator_bugs": true,
+    "self_heal_confirmation_timeout_ms": 120000,
+    "max_phase_retries": 2,
+    "network_retry_wait_ms": 15000,
+    "watchdog_enabled": true,
+    "watchdog_interval_ms": 60000,
+    "watchdog_max_resumes": 3,
+    "_comment": "Auto-heal recoverable blockers without multiplying provider retries. Network/provider failures are owned by the durable queue and never enter the inner healer retry loop; network_retry_wait_ms is retained as a deprecated compatibility key and is currently a no-op. self_heal_confirmation_timeout_ms bounds an unattended source-fix approval so one silent prompt cannot occupy a worker forever. watchdog resumes recoverable pauses through durable jobs. Disable globally with enabled:false or per project with overrides.auto_heal.enabled=false."
+  },
+  "mcp": {
+    "enabled": true,
+    "_comment": "Phase 11, promoted Phase 38: MCP state server (src/mcp/state-server.mjs) exposing get_decisions/get_phase_report/get_bug_history/get_lessons/log_lesson/get_phase_ledger/get_repo_map to the dev agent over stdio via `claude --mcp-config`. true (default as of Phase 38) wires --mcp-config plus the seven mcp__aorch-state__* tool names into --allowedTools for runDev()'s dev-role calls, and swaps the full decisions.jsonl + repo-map injection in the dev prompt for short pointers telling the agent to call get_decisions / get_repo_map instead — the brief constraints block is never MCP-gated. false — claude-runner.js's assembled spawn args for dev/fix calls stay byte-identical to pre-phase-11 (see claude-runner.test.mjs). Override per-project via overrides.mcp.enabled:false if a project needs the old always-inline behavior."
+  },
+  "repo_map": {
+    "enabled": true,
+    "max_tokens": 4000,
+    "guide_tasks": [
+      "plan-creation",
+      "audit",
+      "audit-incremental",
+      "audit-scan",
+      "project-context-gen",
+      "suggest-scan",
+      "bug-plan"
+    ],
+    "exclude": ["node_modules", "dist", "build", "coverage"],
+    "incremental": true,
+    "full_repack_threshold_files": 40,
+    "_comment": "Phase 15 (brief P1): deterministic repo map (src/lib/repo-map.js) — static analysis via repomix, zero LLM cost, regenerated only when HEAD moves (skip-if-fresh front-matter check). Phase 16 wired injection into dev/fix spawns (unconditional, devSystemPromptExtra) and guide spawns (gated by guide_tasks, below). enabled:false is the escape hatch — generateRepoMap() returns null immediately and every caller already treats null as 'inject nothing'. max_tokens: token budget for the map body (chars/4 estimate); over budget the module degrades markdown detail through 3 documented levels (see docs/ARCHITECTURE.md). exclude: extra --ignore patterns passed to repomix on top of its own default ignores (node_modules/.git/build dirs are already excluded by repomix itself; these are additive, not a replacement).",
+    "_guide_tasks_comment": "Phase 16 reconciled scheme: every entry here is a resolveConfig TASK ID — the same namespace as defaults.models keys and billing attribution (NOT GUIDE_TASK_MAP's runGuide()-facing dispatch keys like 'plan'/'audit'). 'plan-creation' = the plan guide call (GUIDE_TASK_MAP['plan']); 'audit' = the single-call audit path taken only when audit.two_stage:false and no diff was detected to scope to (a genuine full single-call audit); 'audit-incremental' (phase-32) = the single-call diff-scoped re-audit path, split out from 'audit' so it never inherits audit's opus hard floor; 'audit-scan' = the two-stage full audit's Sonnet scan stage — the shared systemPromptExtra for both two-stage audit stages injects the map once if EITHER 'audit' or 'audit-scan' is listed (see runTwoStageAudit in phase-runner.js); 'project-context-gen' and 'suggest-scan' are identity-named resolveConfig tasks (project-context-gen is also a GUIDE_TASK_MAP key, mapping to itself). 'bug-plan' (phase-40) is the fresh, task-scoped bug-plan session (GUIDE_TASK_MAP['bug-plan']) — the map injects for it, but ONLY when guide_context.fresh_task_sessions is on; flag off keeps bug-plan resuming with today's exact map-free prompt (see phase-runner.js's mapCtx gate). See docs/ARCHITECTURE.md 'Deterministic repo map' → 'Injection sites'.",
+    "_incremental_comment": "Phase 39 (CE-4): when HEAD has moved and .guide/repo-map-cache.json (the PARSED { sha, tree, files } structure behind repo-map.md) exists, re-scan only the files changedFilesSince() reports instead of a full repomix repack — merges into the cached files[] (replace changed, add new, drop entries whose path no longer exists on disk). false always takes the pre-phase-39 full-repack path and never reads/writes the cache file — a complete escape hatch, same contract as enabled:false above.",
+    "_full_repack_threshold_files_comment": "Phase 39: above this many changed files since the cached sha, an incremental --include re-scan is no cheaper than a full repack (repomix's own startup/parse overhead dominates) — falls back to a full repack instead. Also the fallback trigger when changedFilesSince() itself fails (e.g. the cached sha was garbage-collected after a force-push) or no cache exists yet."
+  },
+  "context_compiler": {
+    "enabled": true,
+    "mode": "shadow",
+    "provider": "hybrid-lexical",
+    "fallback": ["repo-map", "lexical"],
+    "max_files": 12,
+    "max_symbols": 20,
+    "max_reference_depth": 1,
+    "min_confidence": 0.65,
+    "max_scan_files": 2000,
+    "max_file_bytes": 256000,
+    "timeout_ms": {
+      "warm": 10000,
+      "cold": 45000
+    },
+    "token_budget": {
+      "low": 1200,
+      "medium": 1800,
+      "high": 2500,
+      "critical": 2500,
+      "fix": 1000,
+      "repair": 1200,
+      "hard_max": 3000
+    },
+    "fresh_repair_session": true,
+    "delta_acceptance_recheck": true,
+    "targeted_tests": true,
+    "full_suite_every_checkpoints": 3,
+    "rollout": {
+      "enabled": true,
+      "auto_promote": false,
+      "auto_rollback": true,
+      "window_size": 20,
+      "max_sample_age_hours": 168,
+      "promotion": {
+        "min_samples": 12,
+        "min_outcome_samples": 10,
+        "min_outcome_coverage": 0.8,
+        "min_precision": 0.65,
+        "min_recall": 0.8,
+        "min_confidence": 0.65,
+        "max_failure_rate": 0.05
+      },
+      "rollback": {
+        "min_samples": 5,
+        "min_outcome_samples": 3,
+        "min_outcome_coverage": 0.5,
+        "min_precision": 0.45,
+        "min_recall": 0.6,
+        "min_confidence": 0.45,
+        "max_failure_rate": 0.2
+      }
+    },
+    "_comment": "Schema 20: deterministic Hybrid Context Compiler plus measured rollout. Shadow (default) compiles with best-effort attempt/outcome telemetry and zero prompt injection; detectable telemetry gaps block promotion. Assist injects bounded context, uses compiler-targeted tests on routine phases, periodically runs the full suite, and delta-rechecks repaired acceptance criteria. Enforce injects only when confidence and criterion evidence are complete; otherwise it degrades to normal exploration plus full verification without stopping overnight execution. rollout.auto_promote is deliberately false until the operator opts in; when true, healthy shadow telemetry can apply assist only after every configured threshold passes. auto_rollback returns unhealthy assist/enforce runs to shadow. Provider is adapter metadata: hybrid-lexical ships now; Serena/SCIP can replace discovery later. Max-turn continuation always resumes the unfinished session."
+  },
+  "context_freshness": {
+    "enabled": true,
+    "regen_after_commits": 10,
+    "regen_after_external_files": 5,
+    "notify_on_external": true,
+    "_comment": "Phase 19 (brief P2, auto-refresh + notice half): at the same spawn-time contextDelta() check phase 18 already does (runGuide/runTwoStageAudit/runDev), decide whether project-context.md has drifted enough to need a background refresh. enabled:false is the escape hatch — shouldEnqueueContextRefresh() short-circuits to false and no drift notice fires, matching pre-phase-19 behaviour (delta injection from phase 18 is unaffected either way).",
+    "_regen_after_commits_comment": "Total commits (orchestrator + external, capped/overflow-counted the same way contextDelta() reports drift) landed since project-context.md's stamped sha. Crossing this — OR drift:'unknown' (unstamped/corrupted stamp) — enqueues exactly ONE project-context-gen refresh job via the real job queue (src/server/job-queue.js's enqueueContextRefreshJob, same atomic dedupe pattern as enqueueRoadmapJob). The current spawn is never blocked on the refresh; it proceeds with the delta-annotated stale context.",
+    "_regen_after_external_files_comment": "Distinct files touched by commits classified 'external' (pushed outside this pipeline — see classifyCommit in src/lib/context-freshness.js) since the stamp. Crossing this ALSO enqueues a refresh, independent of the total-commits threshold — an operator editing a small, high-impact area of the codebase from outside the pipeline should re-ground the narrative even if the raw commit count is low.",
+    "_notify_on_external_comment": "First detection of new external commits since the last drift notice sends ONE Telegram line via the existing notifier.notify({text}) abstraction (buildContextDriftNotifyText, mirroring auto-runner.js's buildPhaseCompletionNotifyText). The sha that triggered the notice is persisted (.guide/context-freshness-state.json via src/lib/guide-paths.js's contextFreshnessStatePath) so repeat spawns at the same drifted HEAD never re-fire. false disables the notice only — the enqueue behaviour above is independent of this flag."
+  },
+  "guide_reground": {
+    "enabled": true,
+    "after_commits": 15,
+    "after_external_files": 10,
+    "_comment": "Phase 22 (brief P3, large-drift reground half): a SEPARATE, higher-threshold decision from context_freshness above — that decides whether project-context.md needs a background refresh; this decides whether a RESUMED guide session's own beliefs (metadata_json.last_guide_head_sha, tracked since phase 20) are stale enough to discard outright. Crossing either threshold below (buildGuideRegroundReason in src/lib/context-freshness.js) clears guide_session_id, generates a fresh handoff, and starts the next guide call session-less — never re-grounds twice for the same HEAD (metadata_json.last_reground_sha). enabled:false is the escape hatch — buildGuideRegroundReason short-circuits to null and every resumed guide call keeps --resume regardless of drift, matching pre-phase-22 behaviour (the small-drift delta block from phase 20 is unaffected either way).",
+    "_after_commits_comment": "Total commits (orchestrator + external, capped/overflow-counted the same way contextDelta() reports drift) landed since the guide's own last-seen HEAD. Crossing this — OR drift:'unknown' (the guide's last-seen sha is unstamped/rewritten) — re-grounds the very next call that would otherwise resume a session.",
+    "_after_external_files_comment": "Distinct files touched by commits classified 'external' since the guide's last-seen HEAD. Crossing this ALSO re-grounds, independent of the total-commits threshold — a small but high-impact external push should discard stale session beliefs even when the raw commit count is low."
+  },
+  "review_gating": {
+    "enabled": true,
+    "light_max_changed_files": 25,
+    "panel_min_changed_files": 1000000,
+    "force_full_every_n": 1,
+    "_comment": "July 2026 workload policy: reviews run every six phases, at explicit high-risk boundaries, and once at brief completion. Scheduled reviews stay full; the unreliable multi-lens panel is disabled by the deliberately unreachable default threshold and can be explicitly re-enabled per project with a realistic panel_min_changed_files after calibration. Acceptance gates and deterministic tests cover the phases between reviews.",
+    "_light_max_changed_files_comment": "A batch qualifies for the light review only when EVERY phase in it passed verification, carries zero escalation/validation/reprompt markers, AND the files changed since the previous review are at or under this count.",
+    "_panel_min_changed_files_comment": "The three-lens panel costs three review calls and historically hit its turn cap. The high default disables it; set a realistic value explicitly only after panel telemetry is healthy.",
+    "_force_full_every_n_comment": "1 makes every scheduled periodic/risk review a full decisions-updating review. Review frequency is reduced instead of replacing quality gates with fragile light/panel fallbacks."
+  },
+  "guide_context": {
+    "fresh_task_sessions": true,
+    "_comment": "Phase 40 (CE-5): run the 'review' (3-phase-review) and 'bug-plan' guide tasks in FRESH, task-scoped sessions (sessionId:null + role:null) instead of resuming the lifetime guide session. The durable continuity artifacts these two tasks need — decisions.jsonl, reviews, handoffs, and the phase ledger (Phase 37) — are already externalized on disk and re-injected as assembled per-call context (a capped git diff --stat since last_review_sha, the batch's ledger entries, the decisions tail, the prior review's verdict/score, and per-phase report excerpts for review; bugs.md verbatim + the plan's phase list for bug-plan), so resuming the session only dragged 100k+ of history for no continuity gain. role:null is load-bearing: role:'guide' would make claude-runner.js clobber guide_session_id with the fresh session id on its success path, corrupting continuity for the still-RESUMED next-prompt/fix-prompt/handoff calls (billing is keyed by task, so nothing is lost). false restores the resumed (role:'guide', --resume) behaviour byte-for-byte, including map-free/assembled-context-free prompts — the safe default for any project/config predating this phase. next-prompt, fix-prompt, and handoff always keep resuming regardless of this flag."
+  },
+  "ledger": {
+    "enabled": true,
+    "inject_last_k": 8,
+    "extract_fallback": true,
+    "llm_extract_fallback": false,
+    "_comment": "Deterministic cross-phase memory. Tier 1 parses the report's Handoff section; Tier 2 deterministically extracts structured Summary/Files/Decisions/Verification sections from legacy reports. Only an explicit llm_extract_fallback:true permits the bounded haiku Tier 3 when both deterministic paths fail. extract_fallback:false disables both fallback tiers. This keeps routine phase completion at zero additional model calls while preserving an opt-in escape hatch."
+  },
+  "conventions_file": {
+    "enabled": true,
+    "_comment": "Phase 42: materialized project-conventions file. runDev()'s pre-spawn path (src/lib/phase-runner.js) regenerates .guide/project-conventions.md from .guide/decisions.jsonl (grouped by decision type: arch/convention/constraint/deferral) + .guide/lessons-distilled.md (under an 'Anti-patterns' heading) via materializeProjectConventions (src/lib/workspace-skills.js), guarded by a content-hash stamp (.guide/project-conventions.stamp.json) so an unchanged source pair is a no-op write. When the file exists, buildInlinePhasePrompt/buildInlineFixPrompt each add ONE conditional read-list line pointing at it, and loadLessonsBlock drops the DISTILLED section from every spawn (the top-K relevant RAW lessons.jsonl entries stay inline regardless — failure-critical, small). Lives in .guide/, NEVER workspace/ — see src/lib/workspace-skills.js's module comment for why a workspace-owned file would be wrong here. enabled:false is the full escape hatch: no file is ever written/read, and the read-lists + lessons block reproduce pre-phase-42 behavior byte-for-byte regardless of what's already on disk."
+  },
+  "operator_questions": {
+    "enabled": true,
+    "poll_interval_ms": 30000,
+    "_comment": "Phase 48: the ask_operator MCP tool (src/mcp/state-server.mjs) — a NON-BLOCKING channel for a mid-phase dev/fix agent to record a question + the assumption it is proceeding on, instead of stalling the phase. Each call inserts an operator_questions row (status 'open') and appends ONE provisional decision to .guide/decisions.jsonl ('PROVISIONAL (operator question #<id>): <assumption>'), riding the EXISTING decisions-injection into future prompts with zero prompt-assembly changes. The tool NEVER blocks, sleeps, or polls — it returns immediately telling the agent to proceed on its stated assumption. Blocking/parking a live run on an unanswered question is explicitly out of scope for v1 (the `blocking` argument is accepted and stored but never gates control flow). enabled:false removes ask_operator from the server's advertised tool list only — the qualified mcp__aorch-state__ask_operator name still rides along in --allowedTools for every MCP-enabled spawn (src/claude-runner.js's three-condition guard is unchanged by this phase), it is simply unreachable because the server no longer lists or serves it.",
+    "_poll_interval_ms_comment": "Phase 49 (P6 operator answer loop): how often src/lib/operator-questions.js's unref'd poller (mirrors project-watchdog.js's interval precedent) checks for status='open' AND notified_at IS NULL rows and pushes them to the operator via the platform notifier (Telegram: inline-button keyboard; Discord: text-only, buttons out of scope this cycle). enabled:false registers no interval on either server."
+  },
+  "chat": {
+    "issue_bridge": {
+      "auto_fix": false,
+      "_comment": "Issue threads are always logged, but automatic Sonnet 'fix it' turns are opt-in. Keeping this false prevents an original provider/error failure from spawning another costly chat call; the operator can still reply 'fix it' manually."
+    },
+    "autopilot": {
+      "enabled": false,
+      "budget_usd": 5,
+      "max_attempts": 8,
+      "tick_ms": 20000,
+      "_comment": "v0.18 chat autopilot (src/chat/chat-autopilot.js). When enabled, a chat thread flagged autopilot=1 (via the set_autopilot tool, or auto-set by the issue-bridge on unhealable errors) is driven to done by an always-on daemon (started in startWebUi, decoupled from the SSE tick so it runs 24/7): it re-invokes the chat agent whenever there is a reason to act (a run pauses, a job finishes/dies, project state moves) until the agent emits a DONE or BLOCKED control token. GUARDED policy: the agent may auto-SPEND within budget_usd per thread (runs, chains, audits, bug rounds, pipeline) but MUST escalate ship_project / orchestrator_dev / abort_run to the operator. Bounds: the billing-window pause halts the whole loop; max_attempts caps a no-progress spin (reset by real state movement); budget_usd caps runaway spend. tick_ms is the per-thread backoff base (the daemon polls ~every 15s and paces each thread by this). enabled defaults FALSE — the daemon no-ops until turned on here OR via the AORCH_CHAT_AUTOPILOT=1 env override (=0 is a kill switch; AORCH_CHAT_AUTOPILOT_BUDGET overrides budget_usd). All keys are read with fallback defaults in code (autopilotConfig, chat-engine.js), so a config predating this block behaves identically with autopilot off."
+    }
+  },
+  "runtime_qa": {
+    "enabled": true,
+    "mode": "report",
+    "skip_when_no_entrypoint": true,
+    "_comment": "Phase 87 (brief 05 P5a) core + phase 89 (P5b) ready-for-qa insertion: the runtime-QA agent (src/lib/runtime-qa.js runRuntimeQa), now WIRED into the completion flow via auto-runner.js runReadyForQaRuntimeGate. It runs ONCE per RUN (never per phase) at the MAIN-FLOW ready-for-qa transition — all THREE setProjectStatus('ready-for-qa') sites: the two all-phases-complete sites in pickNextAction AND the fix-round-complete site in pickBugAction. enabled: master switch (absent/false → the gate is a no-op, an old run with no config still completes, NO spawn). mode: 'report' (the only mode shipped ON) — run runtime-qa, log the verdict, write .guide/runtime-qa.json, emit ONE notifier line, then transition exactly as today; FAIL-OPEN, so a blocker-carrying or inconclusive verdict NEVER blocks. 'gate' (shipped default-off) — a verdict with >=1 blocker auto-promotes every blocker to bug_inbox (audit-promote promoteRuntimeQaBlockers → addDedupedBug, source 'runtime-qa') and BLOCKS the transition with a 'runtime-qa-blockers' pause. skip_when_no_entrypoint: true skips the whole agent (dim log, NO spawn) when no start/serve/dev script or bin entry is detected in the workspace package.json — a project with nothing to launch has nothing to runtime-QA; a skipped result lets the transition proceed unchanged. SECURITY (verdict-mandated, always enforced regardless of these keys): the agent's Bash is fenced by brief 04's landed deny-rule sandbox; if that mechanism is unresolvable runtime-qa FAILS CLOSED (skips, makes no Bash spawn — never unrestricted Bash). Backward-compat NFR: absence of this block reads as these defaults; absence of .guide/runtime-qa.json or .guide/qa-journeys.json never breaks a run.",
+    "_mode_comment": "'report' | 'gate'. Only 'report' is shipped enabled (fail-open, never blocks). 'gate' is shipped but default-off; its enforcement wiring landed in phase 89 (auto-promote blockers to bug_inbox + block the ready-for-qa transition). Flip to 'gate' only after observing report-mode runtime-qa.json data for a cycle.",
+    "_skip_when_no_entrypoint_comment": "Phase 87: when true (default), detectEntrypoint (package.json scripts.start/serve/dev or a bin entry) returning nothing skips runtime-qa entirely — no launch, no spawn, no verdict file. Set false to force the agent to run and inspect the workspace itself even without an auto-detected entrypoint."
+  },
+  "eval": {
+    "tolerance": 0.1,
+    "_comment": "Phase 84 (brief 05 P6): prompt-eval harness (scripts/eval-prompts.mjs, `npm run eval:prompts`). tolerance is the largest drop in a case's checklist score BELOW its recorded baseline (eval/baselines.json) tolerated before the run exits non-zero — 0.1 means a 10-percentage-point regression trips the gate; a case with no established baseline (score:null) is reported but never gates. The harness runs the REAL runGuide prompt assembly against FROZEN micro-fixtures (eval/fixtures/) in an ISOLATED temp DB, grades each produced artifact with a checklist rubric (eval/rubrics/<task>.md) via ONE roleless prompt-eval-judge call, and compares to baseline. It refuses to start when the billing window is 'warn'/'pause' (naming billing.warn_at_calls as the source) because each case makes real haiku/sonnet calls. Real-call evals NEVER run under `npm test` (fake-runner seam only); the P7 autopilot schedules them as a CHEAP 'eval' job into leftover window headroom. NOT a $schema_version bump — additive key, absence reads as tolerance 0.1."
+  },
+  "autopilot": {
+    "enabled": false,
+    "start_hour": 1,
+    "digest_hour": 8,
+    "max_projects_per_night": 3,
+    "priority_order": ["resume", "brief", "bugs", "audit", "suggestions"],
+    "require_operator_approval_for": ["brief"],
+    "_comment": "Phase 85 (brief 05 P7a): portfolio autopilot core (src/lib/portfolio-autopilot.js). DEFAULT DISABLED — enabled:false means the (P7b) scheduler never ticks. plan() is a PURE function the scheduler feeds gathered portfolio state to; it returns an ordered, budget-packed night plan. start_hour/digest_hour are the local-time hours the nightly plan+execute pass and the morning digest run at. max_projects_per_night caps how many DISTINCT projects one night touches (one action per project). priority_order ranks which action a project takes when several apply, and the packing order across projects (resume > queued brief > bug rounds > audit > suggestions). require_operator_approval_for lists actions that need a VALID, UNEXPIRED standing approval (autopilot_approvals, granted via `ashmero autopilot approve`) before execute() will enqueue them — default ['brief'], because an autonomous overnight brief is the one action never run silently. The packer always leaves billing.window_headroom_min_calls (default 4) of window headroom. All keys are read in code with these exact fallbacks, so a config predating this block behaves identically. NOT a $schema_version bump — additive block, absence reads as these defaults with autopilot off. The one deliberate fail-CLOSED: without brief-04's Bash sandbox the scheduler refuses to run rather than run overnight Bash unrestricted (wired in P7)."
+  }
+}

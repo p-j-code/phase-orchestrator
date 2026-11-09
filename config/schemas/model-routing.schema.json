@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/model-routing.json",
+  "title": "Model Routing Rules",
+  "type": "object",
+  "required": ["$schema_version"],
+  "properties": {
+    "$schema_version": { "type": "integer", "minimum": 1 },
+    "complexity_thresholds": {
+      "type": "object",
+      "properties": {
+        "max_turns_high": { "type": "integer", "minimum": 1 },
+        "max_turns_critical": { "type": "integer", "minimum": 1 },
+        "acceptance_criteria_high": { "type": "integer", "minimum": 1 },
+        "acceptance_criteria_critical": { "type": "integer", "minimum": 1 },
+        "files_expected_high": { "type": "integer", "minimum": 1 },
+        "files_expected_critical": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "keyword_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "match"],
+        "properties": {
+          "label": { "type": "string" },
+          "match": { "type": "array", "items": { "type": "string" } },
+          "force_tier": { "enum": ["haiku", "sonnet", "opus", "fable"] },
+          "min_tier": { "enum": ["haiku", "sonnet", "opus", "fable"] },
+          "max_tier": { "enum": ["haiku", "sonnet", "opus", "fable"] },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "hard_floors": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "enum": ["haiku", "sonnet", "opus", "fable"] },
+          {
+            "type": "object",
+            "required": ["tier"],
+            "properties": {
+              "tier": { "enum": ["haiku", "sonnet", "opus", "fable"] },
+              "when": {
+                "type": "object",
+                "patternProperties": {
+                  "^min_[a-z_]+$": { "type": "number", "minimum": 0 }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "tier_caps": {
+      "type": "object",
+      "properties": {
+        "never_use_haiku_for_dev": { "type": "boolean" },
+        "never_use_haiku_for_reviews": { "type": "boolean" }
+      }
+    },
+    "user_preferences": {
+      "type": "object",
+      "properties": {
+        "prefer_top_for_critical": { "type": "boolean" },
+        "show_routing_in_terminal": { "type": "boolean" },
+        "require_confirm_for_opus": { "type": "boolean" }
+      }
+    }
+  }
+}

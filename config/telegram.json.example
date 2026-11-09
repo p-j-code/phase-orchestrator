@@ -1,0 +1,8 @@
+{
+  "$schema_version": 1,
+  "bot_token": null,
+  "mode": "polling",
+  "webhook_url": null,
+  "webhook_port": 3434,
+  "_notes": "Run: npm run bot-setup -- --token <TOKEN-FROM-BOTFATHER>"
+}

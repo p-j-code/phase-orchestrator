@@ -1,0 +1,14 @@
+{
+  "$schema_version": 1,
+  "name": "nextjs-saas",
+  "description": "Next.js SaaS apps (e.g. SR Web Store, Ashmero marketing site)",
+  "tech_hints": "Next.js 15, TypeScript, Tailwind, MongoDB",
+  "overrides": {
+    "tools": {
+      "allowed_default": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch"]
+    },
+    "phases": {
+      "review_every_n_phases": 6
+    }
+  }
+}

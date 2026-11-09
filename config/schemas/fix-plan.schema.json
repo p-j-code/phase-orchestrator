@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fix-plan.schema.json",
+  "title": "fix-plan",
+  "description": "Structural contract for .guide/bug-rounds/round-N/fix-plan.json (brief 08 / P1b). Deliberately MINIMAL: it pins only the fields setBugRoundFixPlan and the fix loop ACTUALLY read (`fixes` array; each fix's integer `n`, the identifier every commit/marker/completion record keys off). Everything else a guide may emit (title, goal, severity, files_likely, files, acceptance_criteria) is optional and additive — an over-strict schema would false-positive on valid plans, so those stay unconstrained beyond their type when present.",
+  "type": "object",
+  "required": ["fixes"],
+  "properties": {
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["n"],
+        "properties": {
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The fix identifier. Every consumer keys off this (fix-r{round}-{n} commit names, validation-failed markers, recordFixCompletion, `f.n === fix.n` lookups) — a non-integer or missing n breaks the fix loop, so this is the one strictly-required per-fix field."
+          },
+          "title": { "type": "string" },
+          "goal": { "type": "string" },
+          "severity": { "type": "string" },
+          "files_likely": { "type": "array", "items": { "type": "string" } },
+          "files": { "type": "array", "items": { "type": "string" } },
+          "acceptance_criteria": { "type": "array" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

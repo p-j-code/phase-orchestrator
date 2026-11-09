@@ -1,0 +1,68 @@
+# .gitignore — keep live state and secrets out of the orchestrator's own repo.
+#
+# CRITICAL for the dogfooding case: when the orchestrator is registered as a
+# project, its workspace is a clone of THIS repo. If projects/ or state/ were
+# tracked, that clone would contain projects/orchestrator/workspace/projects/...
+# recursively. Excluding them keeps the repo to source + config + docs only.
+
+# Live state / runtime data
+/state/
+/orchestrator.db
+/logs/
+/outputs/
+/dist/
+
+# Secrets and machine-local config
+.env
+/config/telegram.json
+/config/web-auth-token.txt
+.claude/.credentials.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# NAS / deployment runtime
+/backups/
+.schema healing_log
+
+# Dependencies
+/node_modules/
+
+# Per-project trees — keep the directory (via .gitkeep), not its contents
+/projects/*
+!/projects/.gitkeep
+
+# Editor / OS cruft
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+*.log
+*.bak
+*.bak-*
+/state.db
+
+
+# Release safety: keep local credentials, machine configuration, and private
+# project evidence on disk, outside future Git snapshots. Existing remote
+# history is NOT removed by these rules or by index-only untracking.
+.env.*
+!.env.example
+*.backup
+*.backup-*
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+/config/discord.json
+# config/execution-host.json is shipped with single-machine defaults
+/config/*token*.txt
+/.claude/
+/.guide/
+/.vscode/settings.json
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+/docs/NAS_DEPLOYMENT.md
+/docs/dev-flow-100x-blueprint.json
+/docs/dev-flow-100x-audit.md
+/docs/retro/
+/AUDIT_2026-07-19.md

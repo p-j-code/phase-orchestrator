@@ -1,0 +1,15 @@
+{
+  "$schema_version": 1,
+  "name": "nodejs-microservice",
+  "description": "Node.js microservices (e.g. JMS services, ASP, Image Studio workers)",
+  "tech_hints": "Node.js, Express, MongoDB, BullMQ, Redis",
+  "overrides": {
+    "tools": {
+      "allowed_default": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+    },
+    "phases": {
+      "review_every_n_phases": 6,
+      "max_turns_per_phase": 9999
+    }
+  }
+}

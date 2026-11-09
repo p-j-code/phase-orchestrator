@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/brief-conformance.json",
+  "title": "Brief Conformance Verdict",
+  "type": "object",
+  "required": ["frs", "summary"],
+  "properties": {
+    "$schema_version": { "type": "integer", "minimum": 1 },
+    "brief_hash": { "type": "string" },
+    "frs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "requirement", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "requirement": { "type": "string" },
+          "status": { "enum": ["met", "partial", "missing"] },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "summary": { "type": "string" }
+  }
+}

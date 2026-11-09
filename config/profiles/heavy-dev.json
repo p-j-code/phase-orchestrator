@@ -1,0 +1,15 @@
+{
+  "$schema_version": 1,
+  "name": "heavy-dev",
+  "description": "High-complexity projects where dev phases also need Opus (e.g. Reelchain export pipeline). Burns Max window faster.",
+  "tech_hints": "Use for projects with deep algorithmic or performance-critical work",
+  "overrides": {
+    "models": {
+      "dev-execution": "claude-opus-4-8"
+    },
+    "phases": {
+      "review_every_n_phases": 2,
+      "max_turns_per_phase": 999
+    }
+  }
+}

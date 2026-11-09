@@ -1,0 +1,6 @@
+{
+  "active_role": "mac",
+  "active_host_id": "mac",
+  "allow_multi_host": false,
+  "_comment": "Single-writer execution authority. Only the install whose ASHMERO_ROLE and ASHMERO_HOST_ID env vars match active_role/active_host_id may run queue jobs or Claude calls. The defaults ('mac'/'mac') match an install with neither env var set, so a single local machine works out of the box. For a headless host, set ASHMERO_ROLE/ASHMERO_HOST_ID in its .env and point this file at it."
+}

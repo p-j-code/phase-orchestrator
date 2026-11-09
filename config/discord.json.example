@@ -1,0 +1,22 @@
+{
+  "_comment": "Discord bot configuration for Ashmero Orchestrator. Copy this to config/discord.json and fill in your values.",
+  "_setup": [
+    "1. Go to https://discord.com/developers/applications",
+    "2. Create a New Application",
+    "3. Under 'Bot': Create a Bot, copy the Token → bot_token below",
+    "4. Copy the Application ID from the General Information page → client_id below",
+    "5. Enable Privileged Gateway Intents: Message Content Intent + Server Members Intent",
+    "6. Under OAuth2 > URL Generator: scopes = bot + applications.commands",
+    "   Bot permissions: Send Messages, Read Message History, Attach Files, Use Slash Commands",
+    "7. Copy your Discord Server (Guild) ID (right-click server icon → Copy Server ID) → guild_id",
+    "8. Create a channel for bot notifications, copy its ID → channel_id",
+    "9. Run: node src/orchestrator.js bot-setup --token TOKEN --client-id CLIENT_ID --guild-id GUILD_ID --channel-id CHANNEL_ID",
+    "10. Run: node src/orchestrator.js bot-auth-code",
+    "11. In Discord: /auth code:<THE_CODE>",
+    "12. Start the server: npm run server"
+  ],
+  "bot_token": "YOUR_DISCORD_BOT_TOKEN_HERE",
+  "client_id": "YOUR_DISCORD_APPLICATION_ID_HERE",
+  "guild_id": "YOUR_DISCORD_SERVER_ID_HERE",
+  "channel_id": "YOUR_DISCORD_NOTIFICATION_CHANNEL_ID_HERE"
+}

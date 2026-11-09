@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/project.json",
+  "title": "Project Config",
+  "type": "object",
+  "required": ["$schema_version", "name", "created_at"],
+  "properties": {
+    "$schema_version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "display_name": { "type": "string" },
+    "description": { "type": "string" },
+    "tech_stack": { "type": ["string", "null"] },
+    "profile": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "current_phase": { "type": "integer", "minimum": 0 },
+    "total_phases": { "type": "integer", "minimum": 0 },
+    "guide_session_id": { "type": ["string", "null"] },
+    "last_dev_session_id": { "type": ["string", "null"] },
+    "status": { "enum": ["planning", "in-progress", "paused", "completed", "ready-for-qa", "cancelled"] },
+    "guide_layout_version": { "type": "integer", "enum": [1, 2] },
+    "git_branch": { "type": ["string", "null"] },
+    "git_remote": { "type": ["string", "null"] },
+    "overrides": {
+      "type": "object",
+      "description": "Partial deltas applied on top of defaults + profile",
+      "properties": {
+        "models": { "type": "object" },
+        "billing": {
+          "type": "object",
+          "properties": {
+            "priority": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Phase 54 (par-07): this project's fair-share weight in the shared billing window. Its slice is pause_at_calls * priority / sum(active projects' priorities). Default 1 (equal share). Must be > 0."
+            }
+          }
+        },
+        "phases": { "type": "object" },
+        "tools": { "type": "object" },
+        "paths": { "type": "object" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Free-form project metadata",
+      "additionalProperties": true
+    }
+  }
+}

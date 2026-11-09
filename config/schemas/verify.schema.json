@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/verify.json",
+  "title": "Acceptance Check Verdict",
+  "type": "object",
+  "required": ["verdict", "criteria"],
+  "properties": {
+    "$schema_version": { "type": "integer", "minimum": 1 },
+    "phase": { "type": "integer", "minimum": 1 },
+    "verdict": { "enum": ["pass", "fail"] },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "status"],
+        "properties": {
+          "criterion": { "type": "string" },
+          "status": { "enum": ["met", "unmet", "unverifiable"] },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "must_fix": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "notes": { "type": "string" },
+    "checker_model": { "type": "string" },
+    "checker_bucket": { "enum": ["small", "default", "large"] }
+  },
+  "if": {
+    "properties": { "verdict": { "const": "fail" } }
+  },
+  "then": {
+    "required": ["must_fix"]
+  }
+}

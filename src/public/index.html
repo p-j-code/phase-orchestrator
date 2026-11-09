@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ashmero Orchestrator</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/layout.css">
+</head>
+<body>
+
+<div id="app"></div>
+
+<script type="module" src="js/main.js"></script>
+
+<script>
+  // Dev live-reload: harmless no-op in prod (server keeps the stream silent).
+  (function () {
+    if (typeof EventSource === 'undefined') return;
+    try {
+      const es = new EventSource('/api/dev-reload');
+      es.onmessage = () => location.reload();
+      es.onerror = () => es.close();
+    } catch { /* noop */ }
+  })();
+</script>
+
+</body>
+</html>

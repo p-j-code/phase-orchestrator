@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ashmero.com/orchestrator/schemas/plan.json",
+  "title": "Project Phase Plan",
+  "type": "object",
+  "required": ["$schema_version", "project", "phases"],
+  "properties": {
+    "$schema_version": { "type": "integer", "minimum": 1 },
+    "project": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "brief": { "type": "string", "description": "Original requirements brief" },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["n", "title"],
+        "properties": {
+          "n": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string" },
+          "goal": { "type": "string" },
+          "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+          "files_expected": { "type": "array", "items": { "type": "string" } },
+          "depends_on": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+          "model_override": { "type": ["string", "null"] },
+          "max_turns_override": { "type": ["integer", "null"] },
+          "test_first": { "type": "boolean", "description": "Phase 81 (P4a): optional per-phase kill switch for the opt-in test-first harness. false opts THIS phase out even when config.test_first.enabled is true; absent/true leaves the global toggle in charge." },
+          "notes": { "type": "string" },
+          "status": { "enum": ["pending", "in-progress", "completed", "skipped", "failed"] },
+          "completed_at": { "type": ["string", "null"] },
+          "commit_sha": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

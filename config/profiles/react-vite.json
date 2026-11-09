@@ -1,0 +1,14 @@
+{
+  "$schema_version": 1,
+  "name": "react-vite",
+  "description": "React + Vite SPAs (e.g. Reelchain, JMS admin dashboard)",
+  "tech_hints": "React 18, TypeScript, Vite, Tailwind",
+  "overrides": {
+    "tools": {
+      "allowed_default": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+    },
+    "phases": {
+      "review_every_n_phases": 6
+    }
+  }
+}

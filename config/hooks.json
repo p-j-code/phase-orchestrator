@@ -1,0 +1,16 @@
+{
+  "$schema_version": 1,
+  "_notes": "Lifecycle hooks. Each event lists shell commands to run. Available vars: {project}, {phase}, {session_id}, {commit_sha}.",
+  "before_phase": [],
+  "after_phase": [],
+  "on_review": [],
+  "on_handoff": [],
+  "on_pause": [],
+  "on_resume": [],
+  "examples_disabled": {
+    "after_phase": [
+      "echo '[hook] phase {phase} done for {project} (commit {commit_sha})' >> logs/hooks.log",
+      "osascript -e 'display notification \"Phase {phase} complete\" with title \"{project}\"'"
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema_version": 1,
+  "name": "development-focused",
+  "description": "Faster phase throughput without removing deterministic validators or final/high-risk acceptance gates.",
+  "tech_hints": "Use for well-tested projects with acceptance criteria and a periodic review cadence.",
+  "overrides": {
+    "phases": {
+      "review_every_n_phases": 6,
+      "resume_interrupted_session": true,
+      "reconcile_committed_phase_before_spawn": true
+    },
+    "verify": {
+      "mode": "gate",
+      "cadence": {
+        "mode": "checkpoints",
+        "every_n_phases": 3,
+        "always_final": true,
+        "always_complexities": ["high", "critical"],
+        "always_checkpoints": ["architecture", "schema", "external-integration", "destructive"]
+      }
+    }
+  }
+}
